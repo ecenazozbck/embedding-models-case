@@ -1,0 +1,602 @@
+[
+  {
+    "original_index": 0,
+    "original_question": "Cirom ne kadar? / Satışlarım nasıl?",
+    "expected_sql": "SELECT SUM(ROUND(CASE WHEN sh.KDVDahilHaric = 1 THEN (sh.Tutar * 100.0) / (s.KdvOran + 100.0) ELSE sh.Tutar END, 2)) - SUM(ROUND(CASE WHEN sh.KDVDahilHaric = 1 THEN (sh.ToplamIskonto * 100.0) / (s.KdvOran + 100.0) ELSE sh.ToplamIskonto END, 2)) AS KdvHaricNetCiro FROM StokHareket sh LEFT JOIN Stok s ON sh.StokId = s.Id WHERE sh.BelgeTip = 1 AND YEAR(sh.Tarih) = YEAR(GETDATE())",
+    "paraphrase": "Toplam satış gelirim nedir?"
+  },
+  {
+    "original_index": 10,
+    "original_question": "Geride kalan 6 ayın cirosunu göster.",
+    "expected_sql": "SELECT SUM(ROUND(CASE WHEN sh.KDVDahilHaric = 1 THEN (sh.Tutar * 100.0) / (s.KdvOran + 100.0) ELSE sh.Tutar END, 2)) - SUM(ROUND(CASE WHEN sh.KDVDahilHaric = 1 THEN (sh.ToplamIskonto * 100.0) / (s.KdvOran + 100.0) ELSE sh.ToplamIskonto END, 2)) AS KdvHaricNetCiro FROM StokHareket sh LEFT JOIN Stok s ON sh.StokId = s.Id WHERE sh.BelgeTip = 1 AND sh.Tarih >= DATEADD(MONTH, -6, GETDATE())",
+    "paraphrase": "Son altı ayın ciro tutarını gösterir misin?"
+  },
+  {
+    "original_index": 25,
+    "original_question": "KDV hariç toplam cirosuna göre en çok ciro yapan 5 müşteriyi (Bill‑To) listeleyiniz.",
+    "expected_sql": "SELECT TOP 100\n    ch.Unvan AS [Müşteri Unvanı],\n    SUM(sh.Tutar) AS [Toplam Ciro (KDV Hariç)],\n    COUNT(DISTINCT sh.BelgeNo) AS [Fatura Sayısı]\nFROM StokHareket sh WITH (NOLOCK)\nJOIN CariHesap ch WITH (NOLOCK) ON sh.CariHesapId = ch.Id\nWHERE sh.BelgeTip = 1\n  AND sh.IslemTip = 1\nGROUP BY ch.Unvan\nORDER BY [Toplam Ciro (KDV Hariç)] DESC;",
+    "paraphrase": "KDV hariç ciroya göre en çok satış yaptığımız ilk 5 müşteriyi listeler misin?"
+  },
+  {
+    "original_index": 40,
+    "original_question": "Mayıs 2024 ve Mayıs 2025 ayları arasındaki net ciro farkı nedir?",
+    "expected_sql": "SELECT TOP 100 YEAR(sh.BelgeTarih) AS Yil,\n       MONTH(sh.BelgeTarih) AS Ay,\n       SUM(CASE WHEN sh.KDVDahilHaric = 1 THEN (sh.Tutar * 100.0) / (st.KdvOran + 100) ELSE sh.Tutar END) AS NetCiro\nFROM StokHareket sh WITH (NOLOCK)\nJOIN Stok st WITH (NOLOCK) ON sh.StokId = st.Id\nWHERE sh.BelgeTip = 1\n  AND sh.IslemTip = 1\n  AND MONTH(sh.BelgeTarih) = 5\n  AND YEAR(sh.BelgeTarih) IN (2024, 2025)\nGROUP BY YEAR(sh.BelgeTarih), MONTH(sh.BelgeTarih)\nORDER BY Yil;",
+    "paraphrase": "Mayıs 2024 ile Mayıs 2025 arasında net ciro ne kadar değişmiş?"
+  },
+  {
+    "original_index": 55,
+    "original_question": "Geçen hafta teslim edilen siparişlerin toplam tutarı nedir?",
+    "expected_sql": "SELECT TOP 100 SUM(s.Tutar) AS [Teslim Edilen Tutar Toplamı]\nFROM SiparisHareket sh WITH (NOLOCK)\nINNER JOIN SiparisBelge sb WITH (NOLOCK) ON sh.SiparisBelgeId = sb.Id\nINNER JOIN StokHareket s WITH (NOLOCK) ON sh.Id = s.Id\nWHERE sb.SiparisDurumu = 1\n  AND sh.TeslimMiktar > 0\n  AND s.Tarih BETWEEN DATEADD(day, -7, CAST(GETDATE() AS date)) AND CAST(GETDATE() AS date);",
+    "paraphrase": "Geçtiğimiz hafta teslim edilen siparişlerin toplam tutarı ne kadar?"
+  },
+  {
+    "original_index": 70,
+    "original_question": "Aktif kampanya fiyat listelerinde yer alan ve varsayılan perakende satış fiyatı 100 TL'den yüksek olan ürünler hangileri?",
+    "expected_sql": "SELECT TOP 100\n    s.MalKodu AS [Stok Kodu],\n    s.MalAdi AS [Stok Adı],\n    fl.ListeAdi AS [Fiyat Listesi],\n    sf.SatisFiyat1 AS [Perakende Satış Fiyatı]\nFROM FiyatListe AS fl WITH (NOLOCK)\nINNER JOIN FiyatListeDetay AS fld WITH (NOLOCK) ON fld.FiyatId = fl.Id\nINNER JOIN Stok AS s WITH (NOLOCK) ON s.MalKodu = fld.StokKodu\nLEFT JOIN StokFiyat AS sf WITH (NOLOCK) ON sf.StokId = s.Id\nWHERE fl.AktifPasif = 1\n  AND GETDATE() BETWEEN fl.BaslangicTarih AND fl.BitisTarih\n  AND sf.SatisFiyat1 > 100;",
+    "paraphrase": "Aktif kampanya fiyat listesinde olup perakende satış fiyatı 100 TL'yi aşan ürünler hangileri?"
+  },
+  {
+    "original_index": 85,
+    "original_question": "Hangi aktif ürünlerin satış fiyatı, alış fiyatının %10 altında kalmış?",
+    "expected_sql": "SELECT TOP 100\n    s.MalKodu AS Urun_Kodu,\n    s.MalAdi AS Urun_Adi,\n    sf.AlisFiyati1 AS Varsayilan_Alis_Fiyati,\n    sf.SatisFiyat1 AS Varsayilan_Satis_Fiyati\nFROM Stok s WITH (NOLOCK)\nINNER JOIN StokFiyat sf WITH (NOLOCK) ON s.Id = sf.StokId\nWHERE s.AktifPasif = 1 -- Aktif ürünler\n  AND s.MiktarTakibi = 1 -- Fiziksel ürünler\n  AND sf.AlisFiyati1 IS NOT NULL\n  AND sf.AlisFiyati1 > 0\n  AND sf.SatisFiyat1 IS NOT NULL\n  AND sf.SatisFiyat1 > 0\n  AND sf.SatisFiyat1 < (sf.AlisFiyati1 * 0.90) -- Satış fiyatı alış fiyatının %90'ından düşük\nORDER BY sf.AlisFiyati1 - sf.SatisFiyat1 DESC;",
+    "paraphrase": "Satış fiyatı, alış fiyatının %10 altında kalan aktif ürünler hangileri?"
+  },
+  {
+    "original_index": 100,
+    "original_question": "Verdiğimiz çeklerden vadesi geçmiş olanların toplam tutarı nedir ve hangi tedarikçilere ait?",
+    "expected_sql": "SELECT TOP 100\n    ch.Unvan AS TedarikciUnvani,\n    SUM(ck.Tutar) AS ToplamGecikmisCekTutari\nFROM CekKarti ck WITH (NOLOCK)\nINNER JOIN CariHesap ch WITH (NOLOCK) ON ck.CariHesapId = ch.Id\nWHERE\n    ck.CekKartTipi = 1 -- Verilen Çek\n    AND ck.VadeTarihi < GETDATE()\n    -- Vadesi geçmiş ancak henüz iade edilmemiş veya kapatılmamış çekler.\n    -- '28' (İade Edildi) işlemi çekin borç olmaktan çıktığını varsayarız.\n    AND ck.SonIslemTip NOT IN (28) \nGROUP BY\n    ch.Unvan\nORDER BY\n    ToplamGecikmisCekTutari DESC;",
+    "paraphrase": "Vadesi geçmiş, bizim verdiğimiz çeklerin toplam tutarı ve kime ait olduğu nedir?"
+  },
+  {
+    "original_index": 115,
+    "original_question": "Geçen ay en yüksek KDV tutarına sahip satış faturalarımız hangileri?",
+    "expected_sql": "SELECT TOP 100\n    bb.BelgeNo AS Fatura_Numarasi,\n    bb.BelgeTarih AS Fatura_Tarihi,\n    SUM(bv.VergiTutar) AS Toplam_KDV_Tutari\nFROM\n    BelgeBaslik bb WITH (NOLOCK)\nINNER JOIN\n    SatisBelge sb WITH (NOLOCK) ON bb.Id = sb.Id\nINNER JOIN\n    FaturaBelge fb WITH (NOLOCK) ON sb.Id = fb.Id\nINNER JOIN\n    BelgeVergi bv WITH (NOLOCK) ON sb.Id = bv.BelgeId\nWHERE\n    bb.BelgeTip = 1 -- Satış Faturası\n    AND fb.FaturaTipi = 1 -- Satış Faturası\n    AND bb.BelgeTarih >= DATEADD(month, DATEDIFF(month, 0, GETDATE()) - 1, 0) -- Geçen ayın ilk günü\n    AND bb.BelgeTarih < DATEADD(month, DATEDIFF(month, 0, GETDATE()), 0) -- Bu ayın ilk günü\nGROUP BY\n    bb.BelgeNo, bb.BelgeTarih\nORDER BY\n    Toplam_KDV_Tutari DESC;",
+    "paraphrase": "Geçtiğimiz ay KDV tutarı en yüksek olan satış faturalarımız hangileri?"
+  },
+  {
+    "original_index": 130,
+    "original_question": "Hangi banka hesap numaralarından ne kadar tutarda çek düzenlemişiz (vermişiz)?",
+    "expected_sql": "SELECT TOP 100\n    ck.BankaHesapNo AS Banka_Hesap_Numarasi,\n    SUM(ck.Tutar) AS Toplam_Verilen_Cek_Tutari,\n    COUNT(ck.Id) AS Verilen_Cek_Adedi\nFROM CekKarti ck WITH (NOLOCK)\nWHERE ck.CekKartTipi = 1 -- Verilen Çek\nGROUP BY ck.BankaHesapNo\nORDER BY SUM(ck.Tutar) DESC;",
+    "paraphrase": "Hangi banka hesabından ne kadarlık çek düzenlemişiz?"
+  },
+  {
+    "original_index": 145,
+    "original_question": "Siparişlerimizden ne kadarı hiç irsaliye aşamasına geçmeden doğrudan faturalandı?",
+    "expected_sql": "SELECT TOP 100\n    SUM(sh.Tutar) AS Dogrudan_Faturalanan_Siparis_Tutari\nFROM\n    SysBelgeGecis sbg WITH (NOLOCK)\nINNER JOIN\n    StokHareket sh WITH (NOLOCK) ON sbg.ErekBelgeNo = sh.BelgeNo\n                                  AND sbg.ErekSiraNo = sh.SiraNo\n                                  AND sh.BelgeTip = 1 -- Fatura Satırı (StokHareket.BelgeTip değeri)\nWHERE\n    sbg.KaynakBelgeTip = 62 -- Sipariş (SysBelgeGecis.KaynakBelgeTip değeri)\n    AND sbg.ErekBelgeTip = 1; -- Fatura (SysBelgeGecis.ErekBelgeTip değeri)",
+    "paraphrase": "İrsaliye düzenlenmeden direkt faturaya dönüşen siparişlerimiz ne kadar?"
+  },
+  {
+    "original_index": 160,
+    "original_question": "Hizmet kategorisindeki ürünler için (fiziksel stok takibi yapılmayan) bu ay ne kadarlık açık sipariş tutarımız var?",
+    "expected_sql": "SELECT TOP 100\n    SUM(sh.Tutar * sh.AcikMiktar / NULLIF(sh.Miktar, 0)) AS HizmetKategorisiAcikSiparisTutari\nFROM\n    Stok s WITH (NOLOCK)\nINNER JOIN\n    StokHareket sh WITH (NOLOCK) ON s.Id = sh.StokId\nINNER JOIN\n    SiparisHareket sph WITH (NOLOCK) ON sh.Id = sph.Id\nINNER JOIN\n    SiparisBelge spb WITH (NOLOCK) ON sph.SiparisBelgeId = spb.Id\nWHERE\n    s.MiktarTakibi = 0 -- Miktar takibi yapılmayan (Hizmet) ürünler\n    AND sh.AcikMiktar > 0\n    AND spb.SiparisDurumu = 1 -- Açık siparişler\n    AND sh.BelgeTarih >= DATEFROMPARTS(YEAR(GETDATE()), MONTH(GETDATE()), 1)\n    AND sh.BelgeTarih < DATEADD(month, 1, DATEFROMPARTS(YEAR(GETDATE()), MONTH(GETDATE()), 1)); -- Bu ayki siparişler",
+    "paraphrase": "Stok takibi yapılmayan hizmet ürünlerinde bu ayki açık sipariş tutarımız ne kadar?"
+  },
+  {
+    "original_index": 175,
+    "original_question": "Aktif olan ve varsayılan satış fiyatı tanımlanmış ürünlerimizden, şu an geçerli ve aktif bir fiyat listesinde belirli bir müşteriye özel (cari kod tanımlı) fiyatlandırması olanlar hangileri?",
+    "expected_sql": "SELECT TOP 100\n    s.MalKodu AS Urun_Kodu,\n    s.MalAdi AS Urun_Adi,\n    sf.SatisFiyat1 AS Varsayilan_Perakende_Fiyat,\n    fl.ListeAdi AS Ozel_Fiyat_Listesi_Adi,\n    fld.CariKodu AS M_teri_Kodu\nFROM Stok AS s WITH (NOLOCK)\nINNER JOIN StokFiyat AS sf WITH (NOLOCK) ON s.Id = sf.StokId\nINNER JOIN FiyatListeDetay AS fld WITH (NOLOCK) ON s.MalKodu = fld.StokKodu\nINNER JOIN FiyatListe AS fl WITH (NOLOCK) ON fld.FiyatId = fl.Id\nWHERE\n    s.AktifPasif = 1\n    AND sf.SatisFiyat1 IS NOT NULL\n    AND fl.AktifPasif = 1\n    AND GETDATE() BETWEEN fl.BaslangicTarih AND fl.BitisTarih\n    AND fld.CariKodu IS NOT NULL AND fld.CariKodu <> ''\nORDER BY\n    s.MalKodu, fld.CariKodu, fl.ListeAdi;",
+    "paraphrase": "Aktif fiyat listesinde belirli bir müşteriye özel fiyatlandırması bulunan, satış fiyatı tanımlı aktif ürünler hangileri?"
+  },
+  {
+    "original_index": 190,
+    "original_question": "Vadesi bu ay içinde dolacak olan alacak çeklerimiz var mı ve toplam tutarı ne kadar?",
+    "expected_sql": "SELECT TOP 100\n    SUM(chm.Tutar) AS [Bu Ay Vadesi Dolacak Alacak Çekleri Toplam Tutarı (TL)],\n    COUNT(DISTINCT chm.BelgeNo) AS [Farklı Çek/Senet Adedi]\nFROM\n    CariHareket AS chm WITH (NOLOCK)\nINNER JOIN\n    CariHesap AS ch WITH (NOLOCK) ON chm.CariHesapId = ch.Id\nWHERE\n    chm.IslemTip = 17 -- Çek/Senet\n    AND chm.BA = 0 -- Bize Borç (Alacak Çekleri)\n    AND YEAR(chm.VadeTarih) = YEAR(GETDATE())\n    AND MONTH(chm.VadeTarih) = MONTH(GETDATE());",
+    "paraphrase": "Bu ay vadesi gelecek alacak çeklerimiz var mı, toplam tutarı nedir?"
+  },
+  {
+    "original_index": 205,
+    "original_question": "Son 3 ayda müşteriye ulaştırılması en uzun süren (depodan çıkıştan teslimata kadar) sevkiyatlarımız hangileriydi? Belge numaraları ve taşıyıcı firmalarıyla birlikte görebilir miyim?",
+    "expected_sql": "SELECT TOP 100\n    bb.BelgeNo AS İrsaliye_Belge_Numarası,\n    ch.Unvan AS Taşıyıcı_Firma_Adı,\n    ig.FiiliSevkTarihi AS Depodan_Çıkış_Tarihi,\n    ib.TeslimTarihi AS Müşteriye_Teslim_Tarihi,\n    DATEDIFF(HOUR, ig.FiiliSevkTarihi, ib.TeslimTarihi) AS Teslimat_Süresi_Saat\nFROM\n    IrsaliyeGonderi ig WITH (NOLOCK)\nINNER JOIN\n    IrsaliyeBelge ib WITH (NOLOCK) ON ig.IrsaliyeId = ib.Id\nINNER JOIN\n    SatisBelge sb WITH (NOLOCK) ON ib.Id = sb.Id \nINNER JOIN\n    BelgeBaslik bb WITH (NOLOCK) ON sb.Id = bb.Id \nLEFT JOIN\n    CariHesap ch WITH (NOLOCK) ON ig.TasiyiciHesapId = ch.Id\nWHERE\n    ig.FiiliSevkTarihi >= DATEADD(month, -3, GETDATE())\n    AND ib.TeslimTarihi IS NOT NULL\n    AND ig.FiiliSevkTarihi IS NOT NULL\nORDER BY\n    Teslimat_Süresi_Saat DESC;",
+    "paraphrase": "Son 3 ayda depodan çıkışla teslimat arasında en uzun süren sevkiyatlar hangileri, belge no ve taşıyıcı firmasıyla gösterir misin?"
+  },
+  {
+    "original_index": 220,
+    "original_question": "Son 3 ay içinde herhangi bir çeke eklenmiş notları, çekin numarası ve tutarıyla birlikte listeler misin?",
+    "expected_sql": "SELECT TOP 100\n    ck.CekNo AS \"Çek Numarası\",\n    ck.VadeTarihi AS \"Vade Tarihi\",\n    ck.Tutar AS \"Çek Tutarı\",\n    cn.Aciklama AS \"Not İçeriği\",\n    cn.Tarih AS \"Not Tarihi\"\nFROM CekKarti ck WITH (NOLOCK)\nJOIN CekNot cn WITH (NOLOCK) ON ck.Id = cn.CekId\nWHERE cn.Tarih >= DATEADD(month, -3, GETDATE())\nORDER BY cn.Tarih DESC;",
+    "paraphrase": "Son 3 ayda çeklere eklenen notları, çek numarası ve tutarıyla birlikte gösterir misin?"
+  },
+  {
+    "original_index": 235,
+    "original_question": "Başarılı kredi kartı tahsilatlarında, toplamda ne kadar net tahsilat yaptık ve bu tahsilatlar için ne kadar komisyon ödedik?",
+    "expected_sql": "SELECT TOP 100\n    SUM(ccp.PaymentAmount) AS ToplamNetTahsilatTutari,\n    SUM(ccp.TotalAmount - ccp.PaymentAmount) AS ToplamOdenenKomisyonTutari\nFROM CreditCardPayment ccp WITH (NOLOCK)\nWHERE\n    ccp.Status = 1; -- 1=Başarılı",
+    "paraphrase": "Başarılı kredi kartı tahsilatlarımızın toplam net tutarı ve ödediğimiz komisyon ne kadar?"
+  },
+  {
+    "original_index": 250,
+    "original_question": "Azami stok seviyesinin üzerinde stoğu olan ürünler hangileri?",
+    "expected_sql": "SELECT TOP 100\n    s.MalKodu AS \"Ürün Kodu\",\n    s.MalAdi AS \"Ürün Adı\",\n    SUM(CASE WHEN sh.IslemTip = 0 THEN sh.Miktar ELSE -sh.Miktar END) AS \"Mevcut Stok\",\n    s.AzamiStok AS \"Azami Stok Seviyesi\",\n    s.Birim AS \"Birim\"\nFROM\n    Stok s WITH (NOLOCK)\nINNER JOIN\n    StokHareket sh WITH (NOLOCK) ON s.Id = sh.StokId\nWHERE\n    s.MiktarTakibi = 1 -- Stok takibi yapılan ürünler\n    AND s.AktifPasif = 1 -- Aktif ürünler\n    AND s.AzamiStok IS NOT NULL -- Azami stok tanımlı olmalı\n    AND s.AzamiStok > 0 -- Azami stok sıfırdan büyük olmalı\nGROUP BY\n    s.MalKodu, s.MalAdi, s.AzamiStok, s.Birim\nHAVING\n    SUM(CASE WHEN sh.IslemTip = 0 THEN sh.Miktar ELSE -sh.Miktar END) > s.AzamiStok\nORDER BY\n    \"Mevcut Stok\" DESC;",
+    "paraphrase": "Stok miktarı azami seviyeyi aşan ürünler hangileri?"
+  },
+  {
+    "original_index": 265,
+    "original_question": "Varsayılan satış fiyatı 100 TL'nin üzerinde olan aktif ürünlerimizden, aynı zamanda alış fiyatı olmayan (yani sadece satılan ama alınmayan) ürünler hangileri?",
+    "expected_sql": "SELECT TOP 100\n    s.MalKodu AS Urun_Kodu,\n    s.MalAdi AS Urun_Adi,\n    sf.SatisFiyat1 AS Varsayilan_Satis_Fiyati\nFROM\n    Stok s WITH (NOLOCK)\nINNER JOIN\n    StokFiyat sf WITH (NOLOCK) ON s.Id = sf.StokId\nWHERE\n    s.AktifPasif = 1\n    AND sf.SatisFiyat1 > 100.00\n    AND sf.AlisFiyati1 IS NULL;",
+    "paraphrase": "Satış fiyatı 100 TL üzerinde olup alış fiyatı hiç girilmemiş aktif ürünler hangileri?"
+  },
+  {
+    "original_index": 280,
+    "original_question": "İstanbul'da merkezi olan (fatura adresi İstanbul olan) aktif müşterilerimizden kaç tanesinin sevkiyat adresi de tanımlı?",
+    "expected_sql": "SELECT TOP 100\n    COUNT(DISTINCT ch.Id) AS [İstanbul'da Sevk Adresi Tanımlı Müşteri Sayısı]\nFROM\n    CariHesap AS ch WITH (NOLOCK)\nINNER JOIN\n    CariAdres AS ca_fatura WITH (NOLOCK) ON ch.Id = ca_fatura.CariID\nLEFT JOIN\n    CariAdres AS ca_sevk WITH (NOLOCK) ON ch.Id = ca_sevk.CariID AND ca_sevk.AdresTipi = 1\nWHERE\n    ch.KartTipi = 1 -- Müşteri/Tedarikçi\n    AND ch.AktifPasif = 1 -- Aktif\n    AND ca_fatura.AdresTipi = 0 -- Fatura Adresi\n    AND ca_fatura.SehirKod = '034' -- İstanbul\n    AND ca_sevk.Id IS NOT NULL;",
+    "paraphrase": "Fatura adresi İstanbul olan aktif müşterilerden kaçının sevkiyat adresi de kayıtlı?"
+  },
+  {
+    "original_index": 295,
+    "original_question": "Aktif ve geçerli olup da henüz hiçbir ürün detayı tanımlanmamış fiyat listelerimiz hangileri?",
+    "expected_sql": "SELECT TOP 100\n    fl.ListeNo AS [Liste Numarası],\n    fl.ListeAdi AS [Liste Adı],\n    fl.BaslangicTarih AS [Başlangıç Tarihi],\n    fl.BitisTarih AS [Bitiş Tarihi]\nFROM\n    FiyatListe fl WITH (NOLOCK)\nWHERE\n    fl.AktifPasif = 1\n    AND GETDATE() BETWEEN fl.BaslangicTarih AND fl.BitisTarih\n    AND NOT EXISTS (\n        SELECT 1\n        FROM FiyatListeDetay fld WITH (NOLOCK)\n        WHERE fld.FiyatId = fl.Id\n    )\nORDER BY\n    fl.ListeAdi;",
+    "paraphrase": "Aktif ve geçerli olduğu halde içinde hiç ürün detayı olmayan fiyat listelerimiz hangileri?"
+  },
+  {
+    "original_index": 310,
+    "original_question": "Son 1 ay içinde notlarına ekli dosya (ekli belge) olan aktif müşterilerimiz kimler ve bu notların konuları nelerdir?",
+    "expected_sql": "SELECT TOP 100\n    ch.Unvan AS Musteri_Unvan,\n    ch.HesapKodu AS Musteri_Kodu,\n    cn.Konu AS Not_Konusu,\n    cn.Tarih AS Not_Tarihi\nFROM\n    CariHesap ch WITH (NOLOCK)\nINNER JOIN\n    CariNot cn WITH (NOLOCK) ON ch.Id = cn.CariID\nWHERE\n    ch.KartTipi = 1 -- Müşteri/Tedarikçi\n    AND ch.AktifPasif = 1 -- Aktif\n    AND cn.EkliDosya IS NOT NULL\n    AND cn.EkliDosya <> ''\n    AND cn.Tarih >= DATEADD(month, -1, GETDATE())\nORDER BY\n    cn.Tarih DESC;",
+    "paraphrase": "Geçtiğimiz ay notuna dosya eklenmiş aktif müşteriler kimler ve notların konusu ne?"
+  },
+  {
+    "original_index": 325,
+    "original_question": "Bu ay içinde, e-İrsaliye olarak düzenlediğimiz satış irsaliyeleriyle sevk ettiğimiz ürünlerin toplam tutarı ne kadar? Hangi ürünler bu tutara en çok katkı sağladı?",
+    "expected_sql": "SELECT TOP 100\n    s.MalAdi AS Urun_Adi,\n    SUM(sh.Tutar) AS Toplam_Satis_Tutari_TL\nFROM StokHareket sh WITH (NOLOCK)\nJOIN Stok s WITH (NOLOCK) ON sh.StokId = s.Id\nJOIN IrsaliyeBelge ib WITH (NOLOCK) ON sh.IrsaliyeBelgeId = ib.Id\nJOIN BelgeBaslik bb WITH (NOLOCK) ON ib.Id = bb.Id\nWHERE\n    ib.Senaryo = 6 -- e-İrsaliye\n    AND ib.IrsaliyeTipi = 1 -- Satış İrsaliyesi\n    AND sh.IslemTip = 1 -- Çıkış (Satış)\n    AND bb.Tarih >= DATEADD(month, DATEDIFF(month, 0, GETDATE()), 0) -- Bu ayın başı\n    AND bb.Tarih < DATEADD(month, DATEDIFF(month, 0, GETDATE()) + 1, 0) -- Gelecek ayın başı\nGROUP BY\n    s.MalAdi\nORDER BY\n    SUM(sh.Tutar) DESC;",
+    "paraphrase": "Bu ay e-İrsaliye ile sevk edilen ürünlerin toplam tutarı ne kadar ve en çok hangi ürünler katkı sağladı?"
+  },
+  {
+    "original_index": 340,
+    "original_question": "Bu ay içinde vadesi dolacak çek veya senetlerimiz var mı? Varsa, hangi müşterilerden ne kadar alacağımız var?",
+    "expected_sql": "SELECT TOP 100\n    ch.Unvan AS Musteri_Unvani,\n    SUM(cm.Tutar) AS Vadesi_Gelecek_Cek_Senet_Tutari\nFROM CariHareket cm WITH (NOLOCK)\nINNER JOIN CariHesap ch WITH (NOLOCK) ON cm.CariHesapId = ch.Id\nWHERE cm.BA = 1 -- Alacak (Bize ödenecek)\n  AND cm.IslemTip = 17 -- Çek/Senet\n  AND cm.VadeTarih >= DATEADD(month, DATEDIFF(month, 0, GETDATE()), 0) -- Ayın başlangıcı\n  AND cm.VadeTarih < DATEADD(month, DATEDIFF(month, 0, GETDATE()) + 1, 0) -- Ayın sonu\n  AND ch.AktifPasif = 1 -- Aktif cariler\n  AND ch.KartTipi = 1 -- Müşteri/Tedarikçi\nGROUP BY ch.Unvan\nORDER BY Vadesi_Gelecek_Cek_Senet_Tutari DESC;",
+    "paraphrase": "Bu ay vadesi gelecek çek/senetlerimiz var mı, hangi müşteriden ne kadar alacağımız var?"
+  },
+  {
+    "original_index": 355,
+    "original_question": "Bu yıl içinde toplam navlun ve sigorta maliyeti 0 olan (ücretsiz sevk edilen) irsaliye gönderi sayımız ne kadar?",
+    "expected_sql": "SELECT TOP 100\n    COUNT(ig.Id) AS Ucretsiz_Sevk_Edilen_Irsaliye_Sayisi\nFROM\n    IrsaliyeGonderi ig WITH (NOLOCK)\nWHERE\n    ig.Navlun = 0.00 -- Navlun maliyeti sıfır olanlar\n    AND ig.Sigorta = 0.00 -- Sigorta maliyeti sıfır olanlar\n    AND YEAR(ig.FiiliSevkTarihi) = YEAR(GETDATE()); -- Bu yıl içinde",
+    "paraphrase": "Bu yıl navlun ve sigorta maliyeti sıfır olan, yani ücretsiz gönderilen irsaliye sayımız kaç?"
+  },
+  {
+    "original_index": 370,
+    "original_question": "Vadesi gelmiş ama henüz tahsil edilememiş (alacak) hangi faturalarımız var ve toplam tutarı ne kadar? Vadesine göre sıralayabilir misin?",
+    "expected_sql": "SELECT TOP 100\n    ch.Unvan AS \"Müşteri Ünvanı\",\n    ch.HesapKodu AS \"Müşteri Kodu\",\n    carh.BelgeNo AS \"Belge Numarası\",\n    carh.BelgeTarih AS \"Belge Tarihi\",\n    carh.VadeTarih AS \"Vade Tarihi\",\n    SUM(CASE WHEN carh.BA = 0 THEN carh.Tutar ELSE 0 END) - SUM(CASE WHEN carh.BA = 1 THEN carh.Tutar ELSE 0 END) AS \"Vadesi Geçmiş Belge Bakiyesi\"\nFROM CariHesap ch WITH (NOLOCK)\nINNER JOIN CariHareket carh WITH (NOLOCK) ON ch.Id = carh.CariHesapId\nWHERE\n    ch.AktifPasif = 1\n    AND ch.KartTipi = 1 -- Müşteri/Tedarikçi\n    AND carh.VadeTarih < GETDATE() -- Vadesi geçmiş\nGROUP BY\n    ch.Unvan,\n    ch.HesapKodu,\n    carh.BelgeNo,\n    carh.BelgeTarih,\n    carh.VadeTarih\nHAVING\n    SUM(CASE WHEN carh.BA = 0 THEN carh.Tutar ELSE 0 END) - SUM(CASE WHEN carh.BA = 1 THEN carh.Tutar ELSE 0 END) > 0\nORDER BY\n    carh.VadeTarih ASC,\n    \"Vadesi Geçmiş Belge Bakiyesi\" DESC;",
+    "paraphrase": "Vadesi geldiği halde tahsil edilmemiş alacak faturalarımız hangileri, vadeye göre sıralar mısın?"
+  },
+  {
+    "original_index": 385,
+    "original_question": "Son 3 ayda taşıyıcı firmalara ödediğimiz toplam navlun ve sigorta tutarı ne kadar? Bu tutarların hangi taşıyıcı firmalara yapıldığını ve hangi irsaliyelerden kaynaklandığını görmek istiyorum. Her bir irsaliye için navlun ve sigorta detaylarını listeleyebilir misiniz?",
+    "expected_sql": "SELECT TOP 100\n    ch.Unvan AS \"Taşıyıcı Firma Adı\",\n    bb.BelgeNo AS \"İrsaliye Numarası\",\n    CONVERT(DATE, ig.FiiliSevkTarihi) AS \"Fiili Sevk Tarihi\",\n    ig.Navlun AS \"Navlun Tutarı\",\n    ig.Sigorta AS \"Sigorta Tutarı\",\n    (ISNULL(ig.Navlun, 0) + ISNULL(ig.Sigorta, 0)) AS \"Toplam Maliyet\"\nFROM IrsaliyeGonderi ig WITH (NOLOCK)\nINNER JOIN CariHesap ch WITH (NOLOCK) ON ig.TasiyiciHesapId = ch.Id\nINNER JOIN IrsaliyeBelge ib WITH (NOLOCK) ON ig.IrsaliyeId = ib.Id\nINNER JOIN BelgeBaslik bb WITH (NOLOCK) ON ib.Id = bb.Id\nWHERE ig.FiiliSevkTarihi >= DATEADD(month, -3, GETDATE())\n  AND (ig.Navlun > 0 OR ig.Sigorta > 0)\nORDER BY ch.Unvan, ig.FiiliSevkTarihi DESC;",
+    "paraphrase": "Son 3 ayda taşıyıcı firmalara ödenen toplam navlun/sigorta tutarını, hangi firmaya ve hangi irsaliyeye ait olduğunu detaylı gösterir misin?"
+  },
+  {
+    "original_index": 400,
+    "original_question": "Son 6 ayda en yüksek toplam işlem hacmine sahip (alış ve satış dahil) ilk 10 müşterimiz kimler?",
+    "expected_sql": "SELECT TOP 10\n    ch.Unvan AS Musteri_Unvan,\n    SUM(ABS(chr.Tutar)) AS Toplam_Islem_Hacmi_TL\nFROM\n    CariHesap AS ch WITH (NOLOCK)\nINNER JOIN\n    CariHareket AS chr WITH (NOLOCK) ON ch.Id = chr.CariHesapId\nWHERE\n    ch.KartTipi = 1 -- Müşteri/Tedarikçi\n    AND ch.AktifPasif = 1 -- Aktif\n    AND chr.BelgeTarih >= DATEADD(month, -6, GETDATE())\n    AND chr.BelgeTarih <= GETDATE()\nGROUP BY\n    ch.Unvan\nORDER BY\n    Toplam_Islem_Hacmi_TL DESC;",
+    "paraphrase": "Son yarım yılda alış-satış toplamında en yüksek işlem hacmine sahip ilk 10 müşteri kim?"
+  },
+  {
+    "original_index": 415,
+    "original_question": "Şoför olarak görevlendirilmiş ancak TCKN bilgisi girilmemiş irsaliye gönderileri var mı? Varsa, bu gönderilerin irsaliye numaralarını ve ilgili şoförlerin ad/soyadlarını listeleyebilir misiniz?",
+    "expected_sql": "SELECT TOP 100\n    bb.BelgeNo AS Irsaliye_Numarasi,\n    ias.SoforAd AS Sofor_Adi,\n    ias.SoforSoyad AS Sofor_Soyadi,\n    ias.Gorev AS Sofor_Gorevi\nFROM IrsaliyeAracSurucu ias WITH (NOLOCK)\nJOIN IrsaliyeGonderi ig WITH (NOLOCK) ON ias.IrsaliyeGonderiId = ig.Id\nJOIN IrsaliyeBelge ib WITH (NOLOCK) ON ig.IrsaliyeId = ib.Id\nJOIN SatisBelge sb WITH (NOLOCK) ON ib.Id = sb.Id\nJOIN BelgeBaslik bb WITH (NOLOCK) ON sb.Id = bb.Id\nWHERE\n    (ias.SoforTCKN IS NULL OR LTRIM(RTRIM(ias.SoforTCKN)) = '') -- TCKN boş veya sadece boşluk karakterleri içeriyor\n    AND ias.Gorev = 'Şoför'\nORDER BY\n    bb.Tarih DESC;",
+    "paraphrase": "Şoförü atanmış ama TCKN'si girilmemiş irsaliye gönderileri var mı, varsa irsaliye no ve şoför adıyla listeler misin?"
+  },
+  {
+    "original_index": 430,
+    "original_question": "Bu yıl içinde en çok alış yapılan ürünler hangileri ve bu ürünlerin toplam alış tutarı ne kadar?",
+    "expected_sql": "SELECT TOP 100\n    s.MalKodu AS [Ürün Kodu],\n    s.MalAdi AS [Ürün Adı],\n    SUM(sh.Tutar) AS [Bu Yıl Toplam Alış Tutarı]\nFROM StokHareket sh WITH (NOLOCK)\nINNER JOIN Stok s WITH (NOLOCK) ON sh.StokId = s.Id\nWHERE sh.IslemTip = 0 -- Giriş (Alış/Üretim)\n  AND YEAR(sh.BelgeTarih) = YEAR(GETDATE())\nGROUP BY s.MalKodu, s.MalAdi\nORDER BY [Bu Yıl Toplam Alış Tutarı] DESC;",
+    "paraphrase": "Bu yıl en çok satın aldığımız ürünler hangileri ve toplam alış tutarları nedir?"
+  },
+  {
+    "original_index": 445,
+    "original_question": "Önümüzdeki dönemde geçerli olacak, yani başlangıç tarihi henüz gelmemiş olan aktif satış fiyat listelerimiz hangileri? Bu listelerin ne zaman başlayacağını da görebilir miyim?",
+    "expected_sql": "SELECT TOP 100\n    fl.ListeNo AS \"Liste Numarası\",\n    fl.ListeAdi AS \"Liste Adı\",\n    fl.BaslangicTarih AS \"Geçerlilik Başlangıç Tarihi\",\n    fl.BitisTarih AS \"Geçerlilik Bitiş Tarihi\"\nFROM FiyatListe AS fl WITH (NOLOCK)\nWHERE\n    fl.AktifPasif = 1 -- Aktif listeler\n    AND fl.ListeTipi = 1 -- Satış listesi tipi (örnek verilere göre '1' = Satış Listesi)\n    AND fl.BaslangicTarih > GETDATE() -- Başlangıç tarihi henüz gelmemiş\nORDER BY fl.BaslangicTarih ASC;",
+    "paraphrase": "Başlangıç tarihi henüz gelmemiş, ileride geçerli olacak aktif satış fiyat listelerimiz hangileri ve ne zaman başlıyorlar?"
+  },
+  {
+    "original_index": 460,
+    "original_question": "Son 3 ayda en çok stok çıkışı (satış, fire vb.) yapılan ilk 5 depo hangisi?",
+    "expected_sql": "SELECT TOP 5\n    d.DepoAdi AS Depo_Adi,\n    SUM(sh.Miktar) AS Toplam_Cikis_Miktari\nFROM\n    StokHareket sh WITH (NOLOCK)\nINNER JOIN\n    StokBelge sb WITH (NOLOCK) ON sh.StokBelgeId = sb.Id\nINNER JOIN\n    Depo d WITH (NOLOCK) ON sb.CikisDepoId = d.Id\nWHERE\n    sh.IslemTip = 1 -- Çıkış işlemleri (Satış, Fire vb.)\n    AND sh.BelgeTarih >= DATEADD(month, -3, GETDATE())\nGROUP BY\n    d.DepoAdi\nORDER BY\n    Toplam_Cikis_Miktari DESC;",
+    "paraphrase": "Son 3 ayda en fazla stok çıkışı yaşanan ilk 5 depo hangisi?"
+  },
+  {
+    "original_index": 475,
+    "original_question": "Geçen yıl e-İrsaliye olarak gönderip de alıcı tarafından henüz yanıtlanmamış irsaliyelerimiz var mı? Varsa, bu irsaliyelerin belge numaralarını ve teslim tarihlerini listeleyebilir misiniz?",
+    "expected_sql": "SELECT TOP 100\n    bb.BelgeNo AS [İrsaliye Numarası],\n    CAST(ib.TeslimTarihi AS DATE) AS [Fiili Teslim Tarihi],\n    CAST(bb.BelgeTarih AS DATE) AS [İrsaliye Belge Tarihi]\nFROM IrsaliyeBelge AS ib WITH (NOLOCK)\nJOIN SatisBelge AS sb WITH (NOLOCK) ON ib.Id = sb.Id\nJOIN BelgeBaslik AS bb WITH (NOLOCK) ON sb.Id = bb.Id\nWHERE ib.Senaryo = 6 -- e-İrsaliye\n  AND ib.IrsaliyeYaniti = 0 -- Yanıt Yok / Bekleniyor\n  AND bb.BelgeTarih >= DATEADD(year, -1, GETDATE()) -- Geçen yıl içinde düzenlenmiş\nORDER BY [İrsaliye Belge Tarihi] ASC;",
+    "paraphrase": "Geçen yıl gönderdiğimiz ama alıcının hâlâ yanıt vermediği e-İrsaliyeler var mı, belge no ve teslim tarihiyle gösterir misin?"
+  },
+  {
+    "original_index": 490,
+    "original_question": "Toplam kaç farklı aktif müşterimizin iletişim bilgisi (telefon/mobil) var ve bunlardan kaçının şirket e-posta adresi kayıtlı?",
+    "expected_sql": "SELECT TOP 100\n    COUNT(DISTINCT ch.Id) AS Toplam_Iletisim_Bilgisi_Olan_Musteri_Sayisi,\n    SUM(CASE WHEN ch.SirketEMail IS NOT NULL AND ch.SirketEMail != '' THEN 1 ELSE 0 END) AS Sirket_Email_Olan_Musteri_Sayisi\nFROM\n    CariHesap ch WITH (NOLOCK)\nWHERE\n    ch.KartTipi = 1 -- Müşteri/Tedarikçi\n    AND ch.AktifPasif = 1 -- Aktif\n    AND EXISTS (\n        SELECT 1\n        FROM CariErisim ce WITH (NOLOCK)\n        WHERE ce.CariID = ch.Id\n          AND (ce.UlkeKod IS NOT NULL OR ce.BolgeKod IS NOT NULL OR ce.Numara IS NOT NULL)\n    );",
+    "paraphrase": "Telefon bilgisi olan aktif müşteri sayımız kaç ve bunlardan kaçının şirket e-postası var?"
+  },
+  {
+    "original_index": 505,
+    "original_question": "Bu ay itibarıyla, banka entegrasyonu üzerinden yaptığımız (giden) Havale/EFT işlemlerinde toplam ne kadar ödeme gerçekleştirdik?",
+    "expected_sql": "SELECT TOP 100\n    SUM(be.Tutar) AS \"Bu Ayki Giden Havale/EFT Toplam Tutarı\"\nFROM BankaEntegrasyon be WITH (NOLOCK)\nWHERE be.KayitDurum = 1 -- Başarılı\n  AND be.BorcAlacak = 1 -- Giden Para (Alacak)\n  AND MONTH(be.IslemTarih) = MONTH(GETDATE())\n  AND YEAR(be.IslemTarih) = YEAR(GETDATE());",
+    "paraphrase": "Bu ay banka entegrasyonuyla yaptığımız giden Havale/EFT ödemelerinin toplamı ne kadar?"
+  },
+  {
+    "original_index": 520,
+    "original_question": "İstanbul ve Ankara dışındaki şehirlerdeki müşterilerimizden bu yıl en çok tahsilat yaptığımız (alacak hareketleri) şehirler hangisi?",
+    "expected_sql": "SELECT TOP 100\n    il.Ad AS Sehir_Adi,\n    SUM(crh.Tutar) AS Toplam_Tahsilat_Tutari\nFROM CariHesap ch WITH (NOLOCK)\nINNER JOIN CariHareket crh WITH (NOLOCK) ON ch.Id = crh.CariHesapId\nINNER JOIN CariAdres ca WITH (NOLOCK) ON ch.Id = ca.CariID\nINNER JOIN Il il WITH (NOLOCK) ON ca.SehirKod = il.Kod\nWHERE\n    ch.KartTipi = 1 -- Müşteri/Tedarikçi\n    AND ch.AktifPasif = 1 -- Aktif\n    AND crh.BA = 1 -- Alacak hareketleri (tahsilat)\n    AND YEAR(crh.BelgeTarih) = YEAR(GETDATE()) -- Bu yılki hareketler\n    AND ca.AdresTipi = 0 -- Fatura adresi (varsayılan iş adresi)\n    AND il.Kod NOT IN ('034', '006') -- İstanbul ve Ankara dışındaki şehirler\nGROUP BY\n    il.Ad\nORDER BY\n    Toplam_Tahsilat_Tutari DESC;",
+    "paraphrase": "İstanbul ve Ankara hariç, bu yıl en çok tahsilat yaptığımız şehirler hangileri?"
+  },
+  {
+    "original_index": 535,
+    "original_question": "En çok hatalı gelen havale/EFT işlemi alan kendi banka hesaplarımız hangileri ve her biri için ne kadar toplam tutar hatalı geldi?",
+    "expected_sql": "SELECT TOP 100\n    be.HesapIban AS \"Hatalı İşlem Alan IBAN\",\n    COUNT(be.Id) AS \"Toplam Hatalı İşlem Sayısı\",\n    SUM(be.Tutar) AS \"Toplam Hatalı Tutar\"\nFROM BankaEntegrasyon be WITH (NOLOCK)\nWHERE be.KayitDurum = 2 -- Hatalı\nGROUP BY be.HesapIban\nORDER BY COUNT(be.Id) DESC;",
+    "paraphrase": "En fazla hatalı havale/EFT alan banka hesaplarımız hangileri ve hatalı gelen toplam tutar ne kadar?"
+  },
+  {
+    "original_index": 550,
+    "original_question": "Müşterilerimizden siparişini aldığımız ama henüz hiç teslimatını yapmadığımız ürünler hangileri? Bu ürünlerin kodunu, adını ve bekleyen toplam miktarını listeler misin?",
+    "expected_sql": "SELECT TOP 100\n    s.MalKodu AS [Ürün Kodu],\n    s.MalAdi AS [Ürün Adı],\n    SUM(sh.AcikMiktar) AS [Bekleyen Toplam Miktar]\nFROM StokHareket sh WITH (NOLOCK)\nINNER JOIN SiparisHareket sph WITH (NOLOCK) ON sh.Id = sph.Id\nINNER JOIN SiparisBelge sb WITH (NOLOCK) ON sph.SiparisBelgeId = sb.Id\nINNER JOIN Stok s WITH (NOLOCK) ON sh.StokId = s.Id\nWHERE\n    sb.SiparisDurumu = 1 -- Açık siparişler\n    AND sph.TeslimMiktar = 0 -- Henüz hiç teslimat yapılmamış\n    AND sh.AcikMiktar > 0 -- Açık miktarı olanlar\nGROUP BY\n    s.MalKodu,\n    s.MalAdi\nORDER BY\n    [Bekleyen Toplam Miktar] DESC;",
+    "paraphrase": "Siparişi alınmış ama hiç teslim edilmemiş ürünler hangileri, kod/ad/bekleyen miktarıyla gösterir misin?"
+  },
+  {
+    "original_index": 565,
+    "original_question": "Geçerlilik süresi dolmuş veya pasif duruma getirilmiş satış fiyat listelerimiz hangileri? Bu listelerin adlarını ve son geçerlilik tarihlerini görebilir miyim?",
+    "expected_sql": "SELECT TOP 100\n    fl.ListeAdi AS \"Fiyat Listesi Adı\",\n    fl.BitisTarih AS \"Son Geçerlilik Tarihi\",\n    CASE\n        WHEN fl.AktifPasif = 0 THEN 'Pasif'\n        WHEN fl.BitisTarih < GETDATE() THEN 'Süresi Dolmuş'\n        ELSE 'Bilinmiyor' -- Bu durum normalde oluşmamalıdır, ancak kontrol amaçlı eklendi\n    END AS \"Durum\"\nFROM FiyatListe fl WITH (NOLOCK)\nWHERE\n    fl.ListeTipi = 1 -- Satış fiyat listesi\n    AND (fl.AktifPasif = 0 OR fl.BitisTarih < GETDATE()) -- Pasif veya süresi dolmuş\nORDER BY\n    fl.BitisTarih DESC;",
+    "paraphrase": "Süresi dolmuş ya da pasife alınmış satış fiyat listelerimiz hangileri, adları ve son geçerlilik tarihleriyle görebilir miyim?"
+  },
+  {
+    "original_index": 580,
+    "original_question": "Satış fiyatı belirlenmiş olmasına rağmen, tedarikçisi (temin bilgisi) tanımlanmamış olan ürünlerimiz hangileri?",
+    "expected_sql": "SELECT TOP 100\n    s.MalKodu AS \"Ürün Kodu\",\n    s.MalAdi AS \"Ürün Adı\",\n    sf.SatisFiyat1 AS \"Varsayılan Satış Fiyatı\"\nFROM\n    Stok s WITH (NOLOCK)\nINNER JOIN\n    StokFiyat sf WITH (NOLOCK) ON s.Id = sf.StokId\nLEFT JOIN\n    StokTemin st WITH (NOLOCK) ON s.Id = st.StokId\nWHERE\n    s.AktifPasif = 1 -- Aktif ürünler\n    AND sf.SatisFiyat1 IS NOT NULL AND sf.SatisFiyat1 > 0 -- Satış fiyatı tanımlı ve sıfırdan büyük\n    AND st.StokId IS NULL -- Tedarikçi bilgisi tanımlanmamış\nGROUP BY\n    s.MalKodu, s.MalAdi, sf.SatisFiyat1\nORDER BY\n    s.MalAdi;",
+    "paraphrase": "Satış fiyatı olduğu halde tedarikçisi tanımlanmamış ürünler hangileri?"
+  },
+  {
+    "original_index": 595,
+    "original_question": "İstanbul'daki banka şubelerimizin listesini, hangi bankaya ait olduklarını ve şube kodlarını görebilir miyim?",
+    "expected_sql": "SELECT TOP 100\n    b.Ad AS \"Banka Adı\",\n    bs.Ad AS \"Şube Adı\",\n    bs.Kod AS \"Şube Kodu\"\nFROM\n    BankaSube bs WITH (NOLOCK)\nJOIN\n    Banka b WITH (NOLOCK) ON bs.BankaId = b.Id\n-- Assuming an 'Il' (City) table exists with 'Kod' and 'Ad' columns and BankaSube.IlKod refers to Il.Kod\nLEFT JOIN\n    Il i WITH (NOLOCK) ON bs.IlKod = i.Kod\nWHERE\n    i.Ad = 'ISTANBUL'\nORDER BY\n    b.Ad, bs.Ad;",
+    "paraphrase": "İstanbul'daki banka şubelerimizi, bankası ve şube koduyla listeler misin?"
+  },
+  {
+    "original_index": 610,
+    "original_question": "Müşterilerimizden aldığımız çekler arasında, en çok çek düzenleyen (keşideci) kişi veya kurumlar kimler ve bu çeklerin toplam tutarı ne kadar?",
+    "expected_sql": "SELECT TOP 100\n    ck.Duzenleyen AS \"Çeki Düzenleyen Kişi/Kurum\",\n    ck.DuzenleyenUnvani AS \"Düzenleyenin Unvanı\",\n    COUNT(ck.Id) AS \"Toplam Çek Adedi\",\n    SUM(ck.Tutar) AS \"Toplam Çek Tutarı\"\nFROM CekKarti ck WITH (NOLOCK)\nWHERE\n    ck.CekKartTipi = 0 -- 0: Alınan Çek\n    AND ck.Duzenleyen IS NOT NULL AND ck.Duzenleyen != ''\nGROUP BY\n    ck.Duzenleyen, ck.DuzenleyenUnvani\nORDER BY\n    \"Toplam Çek Tutarı\" DESC;",
+    "paraphrase": "Bize en çok çek veren keşideciler kimler ve toplam tutarları ne kadar?"
+  },
+  {
+    "original_index": 625,
+    "original_question": "Bu ay kestiğimiz satış faturalarındaki toplam belge bazlı indirim tutarı ne kadardı?",
+    "expected_sql": "SELECT TOP 100\n    SUM(bi.Tutar) AS ToplamBelgeBazliIndirimTutari\nFROM\n    BelgeIskonto bi WITH (NOLOCK)\nINNER JOIN\n    SatisBelge sb WITH (NOLOCK) ON bi.BelgeId = sb.Id\nINNER JOIN\n    BelgeBaslik bb WITH (NOLOCK) ON sb.Id = bb.Id\nWHERE\n    bb.BelgeTip = 1 -- Satış Faturası\n    AND bi.IndirimArtirim = 0 -- İndirim\n    AND YEAR(bb.BelgeTarih) = YEAR(GETDATE())\n    AND MONTH(bb.BelgeTarih) = MONTH(GETDATE()); -- Bu ay",
+    "paraphrase": "Bu ay kestiğimiz faturalardaki toplam indirim tutarı ne kadar?"
+  },
+  {
+    "original_index": 640,
+    "original_question": "Bu yıl içinde iptal edilen veya bize geri dönen (iade edilen) kendi verdiğimiz çekler hangileri ve toplam tutarı ne kadar?",
+    "expected_sql": "SELECT TOP 100\n    ck.CekNo AS \"Çek Numarası\",\n    ck.Tutar AS \"Çek Tutarı (TL)\",\n    ck.VadeTarihi AS \"Vade Tarihi\",\n    ch.Unvan AS \"Çekin Verildiği Cari (Müşteri/Tedarikçi)\",\n    ck.SonIslemTarih AS \"Son İşlem Tarihi\",\n    CASE ck.SonIslemTip\n        WHEN 79 THEN 'İptal Edildi'\n        WHEN 81 THEN 'İade Edildi'\n        ELSE 'Diğer Durum (' + CAST(ck.SonIslemTip AS NVARCHAR(10)) + ')'\n    END AS \"Çek Durumu\"\nFROM CekKarti ck WITH (NOLOCK)\nINNER JOIN CariHesap ch WITH (NOLOCK) ON ck.CariHesapId = ch.Id\nWHERE\n    ck.CekKartTipi = 1 -- Verilen Çekler\n    AND ck.SonIslemTip IN (79, 81) -- 79: İptal Edildi, 81: İade Edildi (Örnek değerlere göre)\n    AND YEAR(ck.SonIslemTarih) = YEAR(GETDATE());",
+    "paraphrase": "Bu yıl iptal olan ya da iade edilen verdiğimiz çekler hangileri ve toplamı nedir?"
+  },
+  {
+    "original_index": 655,
+    "original_question": "Şu ana kadar düzenlediğimiz irsaliyelerden, henüz hiçbir satırı faturalanmamış olanların toplam tutarı ne kadar?",
+    "expected_sql": "SELECT TOP 100\n    SUM(sh.Tutar) AS [Toplam Faturalanmamış İrsaliye Tutarı]\nFROM\n    StokHareket sh WITH (NOLOCK)\nWHERE\n    sh.BelgeTip = 4 -- Varsayım: İrsaliye için StokHareket.BelgeTip = 4\n    AND NOT EXISTS (\n        SELECT 1\n        FROM SysBelgeGecis sbg WITH (NOLOCK)\n        WHERE sbg.KaynakBelgeNo = sh.BelgeNo\n          AND sbg.KaynakSiraNo = sh.SiraNo\n          AND sbg.ErekBelgeTip = 1 -- Fatura\n    );",
+    "paraphrase": "Hiç faturalanmamış irsaliyelerimizin toplam tutarı ne kadar?"
+  },
+  {
+    "original_index": 670,
+    "original_question": "Son 6 ay içinde hiç teslimat yapılmamış açık siparişlerimizdeki ürünlerin toplam bekleyen miktarını ve tutarını ürün bazında listeler misin?",
+    "expected_sql": "SELECT TOP 100\n    s.MalKodu AS UrunKodu,\n    s.MalAdi AS UrunAdi,\n    SUM(st.AcikMiktar) AS ToplamBekleyenMiktar,\n    st.Birim AS Birim,\n    SUM(st.AcikMiktar * st.BirimFiyat) AS ToplamBekleyenTutar\nFROM\n    SiparisHareket sh WITH (NOLOCK)\nINNER JOIN\n    StokHareket st WITH (NOLOCK) ON sh.Id = st.Id\nINNER JOIN\n    SiparisBelge sb WITH (NOLOCK) ON sh.SiparisBelgeId = sb.Id\nINNER JOIN\n    BelgeBaslik bb WITH (NOLOCK) ON sb.Id = bb.Id\nINNER JOIN\n    Stok s WITH (NOLOCK) ON st.StokId = s.Id\nWHERE\n    sb.SiparisDurumu = 1 -- Açık/Onaylı siparişler\n    AND st.AcikMiktar > 0 -- Henüz teslim edilmemiş miktar\n    AND sh.TeslimMiktar = 0 -- Hiç teslimat yapılmamış\n    AND bb.BelgeTarih >= DATEADD(month, -6, GETDATE()) -- Son 6 ayda oluşturulmuş\nGROUP BY\n    s.MalKodu, s.MalAdi, st.Birim\nORDER BY\n    ToplamBekleyenTutar DESC;",
+    "paraphrase": "Son yarım yılda hiç teslim edilmemiş açık siparişlerdeki ürünlerin bekleyen miktar ve tutarını ürün bazında gösterir misin?"
+  },
+  {
+    "original_index": 685,
+    "original_question": "Son 6 ay içinde hiç not eklenmemiş veya hiç yetkili bilgisi tanımlanmamış aktif müşterilerimiz kimler?",
+    "expected_sql": "SELECT TOP 100\n    ch.Unvan AS Musteri_Unvan,\n    ch.HesapKodu AS Musteri_Kodu,\n    ch.Ad AS Musteri_Ad,\n    ch.SoyAd AS Musteri_Soyad\nFROM\n    CariHesap AS ch WITH (NOLOCK)\nWHERE\n    ch.KartTipi = 1 -- Müşteri/Tedarikçi\n    AND ch.AktifPasif = 1 -- Aktif\n    AND NOT EXISTS (\n        SELECT 1\n        FROM CariNot AS cn WITH (NOLOCK)\n        WHERE cn.CariID = ch.Id\n            AND cn.Tarih >= DATEADD(month, -6, GETDATE())\n    )\n    AND NOT EXISTS (\n        SELECT 1\n        FROM CariYetkili AS cy WITH (NOLOCK)\n        WHERE cy.CariID = ch.Id\n    );",
+    "paraphrase": "Son yarım yılda hiç not girilmemiş veya yetkilisi tanımlanmamış aktif müşteriler kimler?"
+  },
+  {
+    "original_index": 700,
+    "original_question": "Başarılı kredi kartı tahsilatlarında en çok hangi ödeme yöntemleri kullanılmış ve her bir yöntemle toplam ne kadar tutar tahsil edilmiş?",
+    "expected_sql": "SELECT TOP 100\n    cp.PaymentMethodId AS \"Ödeme Yöntemi Kodu\",\n    SUM(cp.TotalAmount) AS \"Toplam Tahsilat Tutarı (Komisyon Dahil)\",\n    COUNT(cp.Id) AS \"Toplam İşlem Adedi\"\nFROM\n    CreditCardPayment AS cp WITH (NOLOCK)\nWHERE\n    cp.Status = 1 -- Başarılı işlemler\nGROUP BY\n    cp.PaymentMethodId\nORDER BY\n    \"Toplam Tahsilat Tutarı (Komisyon Dahil)\" DESC;",
+    "paraphrase": "Başarılı kredi kartı tahsilatlarında en çok kullanılan ödeme yöntemleri hangileri ve her biriyle ne kadar tahsil edilmiş?"
+  },
+  {
+    "original_index": 715,
+    "original_question": "Geçen yıl boyunca bize en az çek veren (adet olarak) ama hala aktif olan müşterilerimiz kimler? Bu müşterilerin listesini ve verdikleri çeklerin toplam tutarını görebilir miyim? (En az çek veren ilk 100 müşteri)",
+    "expected_sql": "SELECT TOP 100\n    ch.Unvan AS Musteri_Unvani,\n    COUNT(ck.Id) AS Verilen_Cek_Adedi,\n    SUM(ck.Tutar) AS Toplam_Verilen_Cek_Tutari\nFROM CekKarti ck WITH (NOLOCK)\nINNER JOIN CariHesap ch WITH (NOLOCK) ON ck.CariHesapId = ch.Id\nWHERE\n    ck.CekKartTipi = 0 -- Alınan Çek\n    AND ch.AktifPasif = 1 -- Aktif Müşteri\n    AND ck.Tarih >= DATEADD(year, -1, DATEADD(year, DATEDIFF(year, 0, GETDATE()), 0)) -- Geçen yılın başından\n    AND ck.Tarih < DATEADD(year, DATEDIFF(year, 0, GETDATE()), 0) -- Bu yılın başına kadar\nGROUP BY ch.Id, ch.Unvan\nORDER BY Verilen_Cek_Adedi ASC, Toplam_Verilen_Cek_Tutari ASC;",
+    "paraphrase": "Geçen yıl en az sayıda çek veren ama hâlâ aktif olan ilk 100 müşteriyi, çek tutarlarıyla birlikte listeler misin?"
+  },
+  {
+    "original_index": 730,
+    "original_question": "Hangi ürünlerimizin satışlar hesabı (muhasebe) tanımlanmamış olmasına rağmen son 1 yıl içinde satışı yapılmış?",
+    "expected_sql": "SELECT TOP 100\n    s.MalKodu AS \"Ürün Kodu\",\n    s.MalAdi AS \"Ürün Adı\",\n    COALESCE(sm.SatislarHesabi, 'Tanımlı Değil') AS \"Tanımlı Satış Hesabı\"\nFROM Stok AS s WITH (NOLOCK)\nLEFT JOIN StokMuhasebe AS sm WITH (NOLOCK) ON s.Id = sm.StokID\nINNER JOIN StokHareket AS sh WITH (NOLOCK) ON s.Id = sh.StokId\nWHERE s.AktifPasif = 1 -- Aktif ürünler\n  AND sh.IslemTip = 1 -- Satış (Çıkış) hareketleri\n  AND sh.BelgeTarih >= DATEADD(year, -1, GETDATE()) -- Son 1 yıl içinde\n  AND (sm.SatislarHesabi IS NULL OR sm.SatislarHesabi = '') -- Satış hesabı tanımlanmamış veya boş\nGROUP BY s.MalKodu, s.MalAdi, sm.SatislarHesabi\nORDER BY s.MalKodu;",
+    "paraphrase": "Muhasebe satış hesabı tanımlanmadığı halde geçen yıl satışı yapılmış ürünler hangileri?"
+  },
+  {
+    "original_index": 745,
+    "original_question": "Son 3 ayda kestiğimiz satış faturalarının ortalama KDV hariç tutarı ne kadar?",
+    "expected_sql": "SELECT TOP 100\n    AVG(FaturaToplamTutar) AS OrtalamaFaturaTutari_KDVHaric\nFROM (\n    SELECT\n        sh.BelgeNo,\n        sh.BelgeTarih,\n        SUM(sh.Tutar) AS FaturaToplamTutar\n    FROM StokHareket sh WITH (NOLOCK)\n    WHERE sh.BelgeTip = 1 -- Satış Faturası\n      AND sh.IslemTip = 1 -- Çıkış (Satış)\n      AND sh.BelgeTarih >= DATEADD(month, -3, GETDATE())\n      AND sh.BelgeTarih <= GETDATE()\n    GROUP BY\n        sh.BelgeNo,\n        sh.BelgeTarih\n) AS FaturaDetaylari;",
+    "paraphrase": "Son 3 aydaki satış faturalarımızın ortalama KDV hariç tutarı nedir?"
+  },
+  {
+    "original_index": 760,
+    "original_question": "Son çeyrekte, taşıyıcı firmalarımızın toplam kaç adet ürün sevk ettiğini ve en çok ürün sevk eden taşıyıcıyı görebilir miyim?",
+    "expected_sql": "SELECT TOP 100\n    ch.Unvan AS Tas_y_c_Firma_Unvan_,\n    SUM(sh.Miktar) AS Toplam_Sevkedilen_Urun_Adedi\nFROM IrsaliyeGonderi ig WITH (NOLOCK)\nJOIN IrsaliyeBelge ib WITH (NOLOCK) ON ig.IrsaliyeId = ib.Id\nJOIN SatisBelge sb WITH (NOLOCK) ON ib.Id = sb.Id\nJOIN BelgeBaslik bb WITH (NOLOCK) ON sb.Id = bb.Id\nJOIN StokHareket sh WITH (NOLOCK) ON sh.IrsaliyeBelgeId = ib.Id\nJOIN CariHesap ch WITH (NOLOCK) ON ig.TasiyiciHesapId = ch.Id\nWHERE ib.IrsaliyeTipi = 1 -- Sadece Satış İrsaliyeleri\n  AND bb.Tarih >= DATEADD(quarter, DATEDIFF(quarter, 0, GETDATE()) - 1, 0) -- Geçen çeyreğin başlangıcı\n  AND bb.Tarih < DATEADD(quarter, DATEDIFF(quarter, 0, GETDATE()), 0) -- Bu çeyreğin başlangıcı (geçen çeyreği kapsar)\nGROUP BY ch.Unvan\nORDER BY Toplam_Sevkedilen_Urun_Adedi DESC;",
+    "paraphrase": "Son çeyrekte taşıyıcı firmalarımızın toplam sevk ettiği ürün adedini ve en çok sevkiyat yapanı gösterir misin?"
+  },
+  {
+    "original_index": 775,
+    "original_question": "Bu yıl kestiğimiz satış faturalarındaki KDV tutarları, oranlara göre nasıl dağılıyor?",
+    "expected_sql": "SELECT TOP 100\n    hv.Oran AS KDV_Orani_Yuzde,\n    SUM(hv.VergiTutar) AS Toplam_KDV_Tutari\nFROM\n    HareketVergi AS hv WITH (NOLOCK)\nINNER JOIN\n    StokHareket AS sh WITH (NOLOCK) ON hv.HareketId = sh.Id\nWHERE\n    sh.BelgeTip = 1 -- Satış Faturası\n    AND sh.IslemTip = 1 -- Çıkış (Satış)\n    AND YEAR(sh.BelgeTarih) = YEAR(GETDATE()) -- Bu yıl\nGROUP BY\n    hv.Oran\nORDER BY\n    Toplam_KDV_Tutari DESC;",
+    "paraphrase": "Bu yılki satış faturalarındaki KDV tutarları oranlara göre nasıl dağılım gösteriyor?"
+  },
+  {
+    "original_index": 790,
+    "original_question": "Geçen ay en çok hangi ürün koduna sahip ürünleri sevk ettik ve bu ürünlerden toplam kaç adet gönderildi? Bu ürünlerin adlarını da görebilir miyim?",
+    "expected_sql": "SELECT TOP 100\n    s.MalKodu AS Urun_Kodu,\n    s.MalAdi AS Urun_Adi,\n    SUM(sh.Miktar) AS Toplam_Sevkiyat_Miktari\nFROM\n    StokHareket sh WITH (NOLOCK)\nJOIN\n    Stok s WITH (NOLOCK) ON sh.StokId = s.Id\nWHERE\n    sh.IslemTip = 1 -- Çıkış\n    AND sh.IrsaliyeBelgeId IS NOT NULL -- İrsaliye belgesine bağlı hareketler\n    AND sh.BelgeTarih >= DATEADD(month, DATEDIFF(month, 0, GETDATE()) - 1, 0) -- Geçen ayın başlangıcı\n    AND sh.BelgeTarih < DATEADD(month, DATEDIFF(month, 0, GETDATE()), 0) -- Bu ayın başlangıcı\nGROUP BY\n    s.MalKodu,\n    s.MalAdi\nORDER BY\n    Toplam_Sevkiyat_Miktari DESC;",
+    "paraphrase": "Geçen ay en çok sevk ettiğimiz ürün kodları hangileri, kaç adet gönderilmiş ve ürün adları nedir?"
+  },
+  {
+    "original_index": 805,
+    "original_question": "Son 1 yılda en çok ciroya sahip olup, sistemde tanımlı bir varsayılan perakende satış fiyatı (Satış Fiyatı 1) olmayan aktif ürünlerimiz hangileri?",
+    "expected_sql": "SELECT TOP 100\n    s.MalKodu AS Urun_Kodu,\n    s.MalAdi AS Urun_Adi,\n    SUM(sh.Tutar) AS Son_1_Yil_Toplam_Ciro\nFROM StokHareket sh WITH (NOLOCK)\nJOIN Stok s WITH (NOLOCK) ON sh.StokId = s.Id\nLEFT JOIN StokFiyat sf WITH (NOLOCK) ON s.Id = sf.StokId\nWHERE sh.IslemTip = 1 -- Satış hareketleri\n  AND sh.BelgeTarih >= DATEADD(year, -1, GETDATE()) -- Son 1 yıl\n  AND s.AktifPasif = 1 -- Aktif ürünler\n  AND (sf.SatisFiyat1 IS NULL OR sf.SatisFiyat1 = 0) -- Satış Fiyatı 1 tanımlı değil veya sıfır\nGROUP BY s.MalKodu, s.MalAdi\nHAVING SUM(sh.Tutar) > 0 -- Cirosu olanlar\nORDER BY Son_1_Yil_Toplam_Ciro DESC;",
+    "paraphrase": "Geçen yıl en çok ciro yapan ama perakende satış fiyatı tanımlanmamış aktif ürünler hangileri?"
+  },
+  {
+    "original_index": 820,
+    "original_question": "Geçerli ve aktif olan satış fiyat listelerimizde, 'BazMiktar'ı sıfırdan büyük olan (yani minimum alım adedi gerektiren) ürünlerden, aynı zamanda cari hesap kodu (müşteri) belirtilmiş olanlar hangileri? Bu ürünlerin kodlarını, listelerin adlarını ve ilgili cari kodlarını görmek istiyorum.",
+    "expected_sql": "SELECT TOP 100\n    fld.StokKodu AS [Ürün Kodu],\n    fl.ListeAdi AS [Fiyat Listesi Adı],\n    fld.CariKodu AS [Müşteri Kodu],\n    fld.BazMiktar AS [Minimum Alım Miktarı]\nFROM\n    FiyatListe fl WITH (NOLOCK)\nINNER JOIN\n    FiyatListeDetay fld WITH (NOLOCK) ON fl.Id = fld.FiyatId\nWHERE\n    fl.AktifPasif = 1\n    AND fl.ListeTipi = 1 -- Satış Fiyat Listesi\n    AND GETDATE() BETWEEN fl.BaslangicTarih AND fl.BitisTarih\n    AND fld.BazMiktar > 0\n    AND fld.CariKodu IS NOT NULL\n    AND fld.CariKodu <> '';",
+    "paraphrase": "Minimum alım şartı olup aynı zamanda belirli bir müşteriye özel tanımlanmış fiyat listesi kalemleri hangileri?"
+  },
+  {
+    "original_index": 835,
+    "original_question": "Son altı ayda depomuza en çok giriş yapan ürünler hangileri ve her birinden toplam ne kadar geldi?",
+    "expected_sql": "SELECT TOP 100\n    s.MalKodu AS \"Ürün Kodu\",\n    s.MalAdi AS \"Ürün Adı\",\n    SUM(sh.Miktar) AS \"Toplam Giriş Miktarı\"\nFROM\n    StokHareket sh WITH (NOLOCK)\nINNER JOIN\n    Stok s WITH (NOLOCK) ON sh.StokId = s.Id\nWHERE\n    sh.IslemTip = 0 -- Sadece giriş hareketleri\n    AND sh.BelgeTarih >= DATEADD(month, -6, GETDATE()) -- Son 6 ay\n    AND s.MiktarTakibi = 1 -- Sadece fiziksel stok takibi yapılan ürünler\nGROUP BY\n    s.MalKodu, s.MalAdi\nORDER BY\n    \"Toplam Giriş Miktarı\" DESC;",
+    "paraphrase": "Son 6 ayda depoya en çok giren ürünler hangileri ve ne kadar miktar gelmiş?"
+  },
+  {
+    "original_index": 850,
+    "original_question": "Varsayılan perakende satış fiyatı (SatışFiyat1) tanımlanmış, ancak toptan satış fiyatı (SatışFiyat2) boş veya sıfır olan aktif ürünlerimiz var mı? Varsa bu ürünleri listeler misiniz?",
+    "expected_sql": "SELECT TOP 100\n    s.MalKodu AS Urun_Kodu,\n    s.MalAdi AS Urun_Adi,\n    sf.SatisFiyat1 AS Perakende_Satis_Fiyati,\n    sf.SatisFiyat2 AS Toptan_Satis_Fiyati\nFROM\n    Stok s WITH (NOLOCK)\nINNER JOIN\n    StokFiyat sf WITH (NOLOCK) ON s.Id = sf.StokId\nWHERE\n    s.AktifPasif = 1\n    AND sf.SatisFiyat1 IS NOT NULL\n    AND sf.SatisFiyat1 > 0\n    AND (sf.SatisFiyat2 IS NULL OR sf.SatisFiyat2 = 0);",
+    "paraphrase": "Perakende satış fiyatı girilmiş ama toptan satış fiyatı boş kalan aktif ürünler var mı?"
+  },
+  {
+    "original_index": 865,
+    "original_question": "Hangi ürünler için açık siparişlerdeki bloke edilmiş miktar, toplam bekleyen miktarın %50'sinden fazlasını oluşturuyor? Bu ürünlerin kodunu, adını ve bloke oranını görmek istiyorum.",
+    "expected_sql": "SELECT TOP 100\n    s.MalKodu AS Urun_Kodu,\n    s.MalAdi AS Urun_Adi,\n    SUM(sph.BlkMiktar) AS Toplam_Bloke_Miktar,\n    SUM(sh.AcikMiktar) AS Toplam_Bekleyen_Miktar,\n    CAST(SUM(sph.BlkMiktar) * 100.0 / NULLIF(SUM(sh.AcikMiktar), 0) AS NUMERIC(18, 2)) AS Bloke_Orani_Yuzde\nFROM SiparisHareket sph WITH (NOLOCK)\nINNER JOIN SiparisBelge sb WITH (NOLOCK) ON sph.SiparisBelgeId = sb.Id\nINNER JOIN StokHareket sh WITH (NOLOCK) ON sph.Id = sh.Id\nINNER JOIN Stok s WITH (NOLOCK) ON sh.StokId = s.Id\nWHERE sb.SiparisDurumu = 1 -- Açık Siparişler\n  AND sh.AcikMiktar > 0 -- Bekleyen miktar olmalı\n  AND sph.BlkMiktar > 0 -- Bloke miktar olmalı\nGROUP BY s.MalKodu, s.MalAdi\nHAVING SUM(sph.BlkMiktar) * 100.0 / NULLIF(SUM(sh.AcikMiktar), 0) > 50\nORDER BY Bloke_Orani_Yuzde DESC;",
+    "paraphrase": "Açık siparişlerde bloke miktarı, bekleyen miktarın yarısından fazlasını oluşturan ürünler hangileri?"
+  },
+  {
+    "original_index": 880,
+    "original_question": "Bu ay yaptığımız (giden) havale/EFT işlemlerinden (entegrasyon üzerinden başarılı olanlar) karşı tarafın IBAN'ına göre toplam ne kadar ödeme yapıldı ve en çok hangi IBAN'a ödeme yaptık?",
+    "expected_sql": "SELECT TOP 100\n    be.KarsiHesapIban AS [Karşı IBAN],\n    SUM(be.Tutar) AS [Toplam Ödenen Tutar],\n    COUNT(be.Id) AS [İşlem Adedi]\nFROM BankaEntegrasyon AS be WITH (NOLOCK)\nWHERE\n    be.KayitDurum = 1 -- Başarılı işlemler\n    AND be.BorcAlacak = 1 -- Giden Para (Alacak)\n    AND be.IslemTarih >= DATEADD(month, DATEDIFF(month, 0, GETDATE()), 0) -- Bu ayın ilk günü\n    AND be.IslemTarih < DATEADD(month, DATEDIFF(month, 0, GETDATE()) + 1, 0) -- Gelecek ayın ilk günü\nGROUP BY\n    be.KarsiHesapIban\nORDER BY\n    [Toplam Ödenen Tutar] DESC;",
+    "paraphrase": "Bu ay yaptığımız başarılı giden Havale/EFT ödemelerinde en çok hangi IBAN'a ne kadar ödeme yapılmış?"
+  },
+  {
+    "original_index": 895,
+    "original_question": "Bu yıl içinde, toplam hacmi (brüt hacim) en yüksek olan irsaliye gönderilerimiz hangileri ve bu gönderileri hangi taşıyıcı firma yaptı? Ayrıca, bu gönderilerdeki toplam ürün miktarlarını da görmek istiyorum.",
+    "expected_sql": "SELECT TOP 100\n    bb.BelgeNo AS Irsaliye_Belge_No,\n    bb.Tarih AS Irsaliye_Tarihi,\n    ch.Unvan AS Tasiyici_Firma_Unvani,\n    ig.BrutHacim AS Toplam_Brut_Hacim_M3,\n    ig.ToplamMiktar AS Toplam_Urun_Miktari\nFROM IrsaliyeGonderi ig WITH (NOLOCK)\nJOIN IrsaliyeBelge ib WITH (NOLOCK) ON ig.IrsaliyeId = ib.Id\nJOIN BelgeBaslik bb WITH (NOLOCK) ON ib.Id = bb.Id\nLEFT JOIN CariHesap ch WITH (NOLOCK) ON ig.TasiyiciHesapId = ch.Id\nWHERE ib.IrsaliyeTipi = 1 -- Sadece Satış İrsaliyeleri\n  AND YEAR(bb.Tarih) = YEAR(GETDATE())\n  AND ig.BrutHacim > 0 -- Hacim bilgisi olanlar\nORDER BY ig.BrutHacim DESC;",
+    "paraphrase": "Bu yıl brüt hacmi en yüksek irsaliye gönderilerimiz hangileri, hangi taşıyıcıyla yapılmış ve toplam ürün miktarı nedir?"
+  },
+  {
+    "original_index": 910,
+    "original_question": "Son 3 ayda hakkında not girilmiş ve bu notlara ek dosya eklenmiş müşterilerimiz kimler? Hangi notlar eklenmiş?",
+    "expected_sql": "SELECT TOP 100\n    ch.Unvan AS [Müşteri Ünvanı],\n    cn.Konu AS [Not Konusu],\n    cn.Tarih AS [Not Tarihi],\n    cn.EkliDosya AS [Ekli Dosya Yolu]\nFROM\n    CariHesap ch WITH (NOLOCK)\nINNER JOIN\n    CariNot cn WITH (NOLOCK) ON ch.Id = cn.CariID\nWHERE\n    cn.Tarih >= DATEADD(month, -3, GETDATE())\n    AND cn.EkliDosya IS NOT NULL\n    AND cn.EkliDosya != ''\n    AND ch.KartTipi = 1 -- Müşteri/Tedarikçi\n    AND ch.AktifPasif = 1 -- Aktif müşteriler\nORDER BY\n    cn.Tarih DESC;",
+    "paraphrase": "Son 3 ayda notuna dosya eklenen müşteriler kimler ve notlar ne hakkında?"
+  },
+  {
+    "original_index": 925,
+    "original_question": "Geçen ay en çok gönderi yapan 3 taşıyıcı firmamız hangileri? Bu firmaların toplam gönderi miktarlarını ve toplam brüt ağırlıklarını görmek istiyorum.",
+    "expected_sql": "SELECT TOP 3\n    ch.Unvan AS Tasiyici_Firma_Unvani,\n    SUM(ig.ToplamMiktar) AS Toplam_Sevkiyat_Miktari,\n    SUM(ig.BrutAgirlik) AS Toplam_Brut_Agirlik\nFROM\n    IrsaliyeGonderi AS ig WITH (NOLOCK)\nINNER JOIN\n    CariHesap AS ch WITH (NOLOCK) ON ig.TasiyiciHesapId = ch.Id\nWHERE\n    ig.FiiliSevkTarihi >= DATEADD(month, DATEDIFF(month, 0, GETDATE()) - 1, 0) -- Geçen ayın başlangıcı\n    AND ig.FiiliSevkTarihi < DATEADD(month, DATEDIFF(month, 0, GETDATE()), 0) -- Bu ayın başlangıcı\nGROUP BY\n    ch.Unvan\nORDER BY\n    SUM(ig.ToplamMiktar) DESC;",
+    "paraphrase": "Geçtiğimiz ay en çok gönderi yapan ilk 3 taşıyıcı firma hangileri, gönderi miktarı ve ağırlığı nedir?"
+  },
+  {
+    "original_index": 940,
+    "original_question": "Kritik stok seviyesinin üzerinde olmasına rağmen son 1 yılda hiç satılmamış ürünlerimiz hangileri?",
+    "expected_sql": "SELECT TOP 100\n    s.MalKodu AS UrunKodu,\n    s.MalAdi AS UrunAdi,\n    s.KritikStok AS KritikStokSeviyesi\nFROM Stok s WITH (NOLOCK)\nWHERE\n    s.MiktarTakibi = 1 -- Fiziksel ürünler (stok takibi yapılanlar)\n    AND s.KritikStok IS NOT NULL\n    AND s.KritikStok > 0\n    AND NOT EXISTS (\n        SELECT 1\n        FROM StokHareket sh WITH (NOLOCK)\n        WHERE\n            sh.StokId = s.Id\n            AND sh.BelgeTip = 1 -- Satış Faturası\n            AND sh.IslemTip = 1 -- Çıkış (Satış)\n            AND sh.BelgeTarih >= DATEADD(year, -1, GETDATE()) -- Son 1 yıl içinde\n    )\nORDER BY\n    s.MalAdi;",
+    "paraphrase": "Kritik stok seviyesinin üzerinde olduğu halde bir yıldır hiç satılmayan ürünler hangileri?"
+  },
+  {
+    "original_index": 955,
+    "original_question": "Banka entegrasyonu üzerinden başarısız olan havale/EFT işlemlerinde, en çok hangi karşı IBAN'lar (gönderici IBAN'ları) ile ilgili sorun yaşıyoruz ve bu IBAN'lara ait toplam başarısız işlem tutarı nedir?",
+    "expected_sql": "SELECT TOP 100\n    be.KarsiHesapIban AS Sorunlu_Karsi_IBAN,\n    COUNT(be.Id) AS Basarisiz_Islem_Adedi,\n    SUM(be.Tutar) AS Toplam_Basarisiz_Islem_Tutarı\nFROM\n    BankaEntegrasyon be WITH (NOLOCK)\nWHERE\n    be.KayitDurum = 2 -- Hatalı/Başarısız işlemler\n    AND be.BorcAlacak = 0 -- Gelen para (Havale/EFT)\n    AND be.KarsiHesapIban IS NOT NULL AND be.KarsiHesapIban != ''\nGROUP BY\n    be.KarsiHesapIban\nORDER BY\n    Basarisiz_Islem_Adedi DESC, Toplam_Basarisiz_Islem_Tutarı DESC;",
+    "paraphrase": "Başarısız havale/EFT işlemlerinde en çok sorun yaşadığımız gönderici IBAN'lar hangileri ve toplam başarısız tutar ne kadar?"
+  },
+  {
+    "original_index": 970,
+    "original_question": "Portföyümüzde bulunan, vadesi gelmemiş ve vadesi geçmiş müşteri çeklerinin toplam tutarlarını ayrı ayrı görebilir miyim?",
+    "expected_sql": "SELECT TOP 100\n    CASE\n        WHEN ck.VadeTarihi < GETDATE() THEN 'Vadesi Geçmiş Alınan Çekler'\n        ELSE 'Vadesi Gelmemiş Alınan Çekler'\n    END AS CekDurumu,\n    SUM(ck.Tutar) AS ToplamTutar\nFROM CekKarti ck WITH (NOLOCK)\nWHERE ck.CekKartTipi = 0 -- Alınan Çek (Müşteri Çekleri)\nGROUP BY\n    CASE\n        WHEN ck.VadeTarihi < GETDATE() THEN 'Vadesi Geçmiş Alınan Çekler'\n        ELSE 'Vadesi Gelmemiş Alınan Çekler'\n    END\nORDER BY CekDurumu;",
+    "paraphrase": "Elimizdeki müşteri çeklerinden vadesi gelenlerle gelmeyenlerin toplam tutarını ayrı ayrı gösterir misin?"
+  },
+  {
+    "original_index": 985,
+    "original_question": "Toplamda müşterilerimize ne kadarlık bir kredi limiti tanımlamışız?",
+    "expected_sql": "SELECT TOP 100\n    SUM(ch.KrediLimiti) AS Toplam_Tanımlanan_Kredi_Limiti_TL\nFROM\n    CariHesap AS ch WITH (NOLOCK)\nWHERE\n    ch.KartTipi = 1 -- Müşteri/Tedarikçi\n    AND ch.AktifPasif = 1 -- Aktif cariler\n    AND ch.KrediLimiti IS NOT NULL; -- Kredi limiti tanımlanmış olanlar",
+    "paraphrase": "Müşterilerimize toplamda tanımladığımız kredi limiti ne kadar?"
+  },
+  {
+    "original_index": 1000,
+    "original_question": "Başlangıç tarihi henüz gelmemiş olan (gelecekte başlayacak) aktif satış fiyat listelerimiz var mı? Varsa bu listeleri ve başlangıç tarihlerini görebilir miyim?",
+    "expected_sql": "SELECT TOP 100\n    fl.ListeNo AS \"Liste Numarası\",\n    fl.ListeAdi AS \"Liste Adı\",\n    fl.BaslangicTarih AS \"Başlangıç Tarihi\",\n    fl.BitisTarih AS \"Bitiş Tarihi\"\nFROM FiyatListe AS fl WITH (NOLOCK)\nWHERE fl.AktifPasif = 1 -- Aktif listeler\n  AND fl.ListeTipi = 1 -- Satış listeleri\n  AND fl.BaslangicTarih > GETDATE() -- Başlangıç tarihi henüz gelmemiş olanlar\nORDER BY fl.BaslangicTarih ASC;",
+    "paraphrase": "İleride başlayacak, henüz aktifleşmemiş satış fiyat listelerimiz var mı, başlangıç tarihleriyle görebilir miyim?"
+  },
+  {
+    "original_index": 1015,
+    "original_question": "Gelecek ayın ilk 15 günü içinde vadesi dolacak olan, firmamız tarafından verilmiş çeklerin toplam tutarı nedir ve en yüksek tutarlı ilk 5'ini listeler misin?",
+    "expected_sql": "SELECT TOP 5\n    ch.Unvan AS \"Tedarikçi Adı\",\n    ck.CekNo AS \"Çek Numarası\",\n    ck.VadeTarihi AS \"Vade Tarihi\",\n    ck.Tutar AS \"Çek Tutarı (TL)\"\nFROM\n    CekKarti ck WITH (NOLOCK)\nINNER JOIN\n    CariHesap ch WITH (NOLOCK) ON ck.CariHesapId = ch.Id\nWHERE\n    ck.CekKartTipi = 1 -- Verilen Çek\n    AND ck.VadeTarihi >= DATEADD(month, DATEDIFF(month, 0, GETDATE()) + 1, 0) -- Gelecek ayın ilk günü\n    AND ck.VadeTarihi < DATEADD(day, 15, DATEADD(month, DATEDIFF(month, 0, GETDATE()) + 1, 0)) -- Gelecek ayın 15. günü\nORDER BY\n    ck.Tutar DESC;",
+    "paraphrase": "Önümüzdeki ayın ilk yarısında vadesi gelecek verdiğimiz çeklerin toplamı ne kadar ve en yüksek 5 tanesi hangileri?"
+  },
+  {
+    "original_index": 1030,
+    "original_question": "Envanterimizde seri veya parti numarası ile takip edilen aktif ürünlerimizin toplam mevcut stok miktarı nedir?",
+    "expected_sql": "SELECT TOP 100\n    s.MalKodu AS Urun_Kodu,\n    s.MalAdi AS Urun_Adi,\n    SUM(CASE WHEN sh.IslemTip = 0 THEN sh.Miktar ELSE -sh.Miktar END) AS Mevcut_Stok_Miktari\nFROM Stok s WITH (NOLOCK)\nJOIN StokHareket sh WITH (NOLOCK) ON s.Id = sh.StokId\nWHERE s.SeriPartiAktifPasif = 1 -- Seri/Parti takibi yapılan ürünler\n  AND s.AktifPasif = 1 -- Aktif ürünler\n  AND s.MiktarTakibi = 1 -- Stok takibi yapılan ürünler\nGROUP BY s.Id, s.MalKodu, s.MalAdi\nHAVING SUM(CASE WHEN sh.IslemTip = 0 THEN sh.Miktar ELSE -sh.Miktar END) > 0 -- Sadece stoğu olanları göster\nORDER BY Mevcut_Stok_Miktari DESC;",
+    "paraphrase": "Seri/parti numarasıyla takip edilen aktif ürünlerin toplam mevcut stoğu ne kadar?"
+  },
+  {
+    "original_index": 1045,
+    "original_question": "Belirli bir özel kodla işaretlenmiş ürünlerimizden, geçen ay en çok ciro yapan ürün hangisiydi?",
+    "expected_sql": "SELECT TOP 100\n    s.MalKodu AS \"Ürün Kodu\",\n    s.MalAdi AS \"Ürün Adı\",\n    SUM(sh.Tutar) AS \"Toplam Net Ciro\"\nFROM\n    StokHareket sh WITH (NOLOCK)\nINNER JOIN\n    Stok s WITH (NOLOCK) ON sh.StokId = s.Id\nWHERE\n    sh.BelgeTip = 1 -- Satış Faturası\n    AND sh.IslemTip = 1 -- Çıkış (Satış)\n    AND sh.BelgeTarih >= DATEADD(month, DATEDIFF(month, 0, GETDATE()) - 1, 0) -- Geçen ayın başı\n    AND sh.BelgeTarih < DATEADD(month, DATEDIFF(month, 0, GETDATE()), 0) -- Geçen ayın sonu\n    AND s.Kod1 = 'ADK788' -- Örnek bir özel kod, ihtiyaca göre değiştirilebilir\nGROUP BY\n    s.MalKodu, s.MalAdi\nORDER BY\n    \"Toplam Net Ciro\" DESC;",
+    "paraphrase": "Özel kodla işaretli ürünler arasında geçen ay en çok ciro yapan hangisiydi?"
+  },
+  {
+    "original_index": 1060,
+    "original_question": "Bu yıl içinde e-İrsaliye olarak düzenlediğimiz gönderilerde, en çok sevkiyatı hangi taşıyıcı firmalarla yaptık ve bu firmaların her biriyle kaç adet e-İrsaliye gönderisi gerçekleştirdik? İlk 5'i listeler misiniz?",
+    "expected_sql": "SELECT TOP 5 ch.Unvan AS Tasiyici_Firma_Unvani,\n       COUNT(ig.Id) AS Toplam_E_Irsaliye_Gonderi_Adedi\nFROM IrsaliyeGonderi ig WITH (NOLOCK)\nINNER JOIN IrsaliyeBelge ib WITH (NOLOCK) ON ig.IrsaliyeId = ib.Id\nINNER JOIN CariHesap ch WITH (NOLOCK) ON ig.TasiyiciHesapId = ch.Id\nWHERE ib.Senaryo = 6 -- e-İrsaliye senaryosu\n  AND YEAR(ig.FiiliSevkTarihi) = YEAR(GETDATE())\nGROUP BY ch.Unvan\nORDER BY Toplam_E_Irsaliye_Gonderi_Adedi DESC",
+    "paraphrase": "Bu yıl e-İrsaliye gönderilerinde en çok çalıştığımız ilk 5 taşıyıcı firma hangileri, kaçar gönderi yapmışlar?"
+  },
+  {
+    "original_index": 1075,
+    "original_question": "Depoda en çok hangi ürünlerin stok kartında resim tanımlanmış ve bu ürünlerin adları nelerdir?",
+    "expected_sql": "SELECT TOP 100\n    s.MalKodu AS Urun_Kodu,\n    s.MalAdi AS Urun_Adi,\n    'Resim Tanımlı' AS Resim_Durumu\nFROM Stok s WITH (NOLOCK)\nWHERE s.Resim IS NOT NULL\n  AND s.Resim <> ''\n  AND s.AktifPasif = 1 -- Sadece aktif ürünler\nORDER BY s.MalAdi;",
+    "paraphrase": "Stok kartında resmi tanımlı ürünlerimiz hangileri, adları nedir?"
+  },
+  {
+    "original_index": 1090,
+    "original_question": "Şu an beklemede olan kredi kartı tahsilat işlemlerimizin toplam net tutarı ve komisyon dahil toplam brüt tutarı ne kadar?",
+    "expected_sql": "SELECT TOP 100\n    SUM(ccp.PaymentAmount) AS Toplam_Net_Tahsilat_Tutari,\n    SUM(ccp.TotalAmount) AS Toplam_Brut_Tahsilat_Tutari\nFROM CreditCardPayment ccp WITH (NOLOCK)\nWHERE ccp.Status = 0;",
+    "paraphrase": "Şu anda beklemede olan kredi kartı tahsilatlarının net ve komisyon dahil brüt toplamı ne kadar?"
+  },
+  {
+    "original_index": 1105,
+    "original_question": "Hangi ürünlerden ne kadar miktar sipariş edilmiş ama henüz hiç teslimat yapılmamış, yani tamamen açık durumda olan siparişlerimiz var?",
+    "expected_sql": "SELECT TOP 100\n    s.MalAdi AS UrunAdi,\n    SUM(sh.AcikMiktar) AS ToplamBekleyenMiktar\nFROM\n    StokHareket sh WITH (NOLOCK)\nINNER JOIN\n    SiparisHareket sph WITH (NOLOCK) ON sh.Id = sph.Id\nINNER JOIN\n    SiparisBelge spb WITH (NOLOCK) ON sph.SiparisBelgeId = spb.Id\nINNER JOIN\n    Stok s WITH (NOLOCK) ON sh.StokId = s.Id\nWHERE\n    spb.SiparisDurumu = 1 -- Açık siparişler\n    AND sph.TeslimMiktar = 0 -- Hiç teslimat yapılmamış\n    AND sh.AcikMiktar > 0 -- Ve hala bekleyen miktarı var\nGROUP BY\n    s.MalAdi\nORDER BY\n    SUM(sh.AcikMiktar) DESC;",
+    "paraphrase": "Sipariş edilip hiç teslim edilmemiş, tamamen açık durumdaki ürünler ve miktarları neler?"
+  },
+  {
+    "original_index": 1120,
+    "original_question": "En yüksek birim fiyatla sattığımız ilk 10 ürün ve bu ürünleri hangi müşterilere sattık?",
+    "expected_sql": "SELECT TOP 10\n    s.MalAdi AS \"Ürün Adı\",\n    ch.Unvan AS \"Müşteri Ünvanı\",\n    sh.BirimFiyat AS \"Birim Fiyatı\",\n    sh.BelgeTarih AS \"Fatura Tarihi\"\nFROM StokHareket AS sh WITH (NOLOCK)\nINNER JOIN Stok AS s WITH (NOLOCK) ON sh.StokId = s.Id\nINNER JOIN CariHesap AS ch WITH (NOLOCK) ON sh.CariHesapId = ch.Id\nWHERE\n    sh.BelgeTip = 1 -- Satış Faturası\n    AND sh.IslemTip = 1 -- Çıkış (Satış)\nORDER BY\n    sh.BirimFiyat DESC;",
+    "paraphrase": "Birim fiyatı en yüksek olan ilk 10 satışımız hangileri ve hangi müşterilere yapılmış?"
+  },
+  {
+    "original_index": 1135,
+    "original_question": "Aktif olan ürünlerimizden, varsayılan alış fiyatı tanımlanmış ancak bu alış fiyatının birimi (adet, kg vb.) belirtilmemiş olanlar hangileri?",
+    "expected_sql": "SELECT TOP 100\n    s.MalKodu AS \"Ürün Kodu\",\n    s.MalAdi AS \"Ürün Adı\",\n    sf.AlisFiyati1 AS \"Varsayılan Alış Fiyatı\"\nFROM Stok AS s WITH (NOLOCK)\nINNER JOIN StokFiyat AS sf WITH (NOLOCK) ON s.Id = sf.StokId\nWHERE\n    s.AktifPasif = 1 -- Aktif ürünler\n    AND sf.AlisFiyati1 IS NOT NULL -- Alış fiyatı tanımlanmış\n    AND sf.AF1Birim1 IS NULL; -- Alış fiyatı birimi belirtilmemiş",
+    "paraphrase": "Alış fiyatı girilmiş ama birimi belirtilmemiş aktif ürünler hangileri?"
+  },
+  {
+    "original_index": 1150,
+    "original_question": "Aktif ve geçerli olan satış fiyat listelerimizde, aynı ürüne (StokKodu) ait birden fazla farklı cari hesap kodu için özel fiyatlandırma detayı girilmiş ürünler hangileri? Bu durum, ürün bazında cariye özel fiyatlandırmanın karmaşıklığını gösterebilir.",
+    "expected_sql": "SELECT TOP 100\n    s.MalKodu AS Urun_Kodu,\n    s.MalAdi AS Urun_Adi,\n    fl.ListeAdi AS Fiyat_Listesi_Adi,\n    COUNT(DISTINCT fld.CariKodu) AS Farkli_Cari_Hesap_Sayisi\nFROM FiyatListe AS fl WITH (NOLOCK)\nINNER JOIN FiyatListeDetay AS fld WITH (NOLOCK) ON fl.Id = fld.FiyatId\nINNER JOIN Stok AS s WITH (NOLOCK) ON s.MalKodu = fld.StokKodu\nWHERE\n    fl.AktifPasif = 1 -- Aktif Fiyat Listeleri\n    AND fl.ListeTipi = 1 -- Sadece Satış Listeleri\n    AND GETDATE() BETWEEN fl.BaslangicTarih AND fl.BitisTarih -- Şu an geçerli olanlar\n    AND fld.CariKodu IS NOT NULL -- Cari kod belirtilmiş olanlar\nGROUP BY\n    s.MalKodu,\n    s.MalAdi,\n    fl.ListeAdi\nHAVING\n    COUNT(DISTINCT fld.CariKodu) > 1\nORDER BY\n    fl.ListeAdi, s.MalKodu;",
+    "paraphrase": "Aynı ürün için birden fazla müşteriye özel fiyatlandırması olan ürünler hangileri?"
+  },
+  {
+    "original_index": 1165,
+    "original_question": "Stokta bulunan aktif ürünlerimizin toplam değeri ne kadardır, varsayılan satış fiyatı 1 üzerinden hesaplarsak?",
+    "expected_sql": "SELECT TOP 100\n    SUM(ISNULL(stok_hesap.MevcutStok, 0) * ISNULL(sf.SatisFiyat1, 0)) AS [Toplam Stok Değeri (Satış Fiyatı 1 Üzerinden)]\nFROM\n    Stok s WITH (NOLOCK)\nINNER JOIN\n    StokFiyat sf WITH (NOLOCK) ON s.Id = sf.StokId\nLEFT JOIN (\n    SELECT\n        sh.StokId,\n        SUM(CASE WHEN sh.IslemTip = 0 THEN sh.Miktar ELSE -sh.Miktar END) AS MevcutStok\n    FROM\n        StokHareket sh WITH (NOLOCK)\n    GROUP BY\n        sh.StokId\n) AS stok_hesap ON s.Id = stok_hesap.StokId\nWHERE\n    s.AktifPasif = 1 -- Aktif ürünler\n    AND s.MiktarTakibi = 1 -- Miktar takibi yapılan ürünler (fiziksel ürünler)\n    AND sf.SatisFiyat1 IS NOT NULL;",
+    "paraphrase": "Mevcut stoktaki aktif ürünlerin, satış fiyatı 1 üzerinden hesaplanan toplam değeri nedir?"
+  },
+  {
+    "original_index": 1180,
+    "original_question": "Aktif durumdaki ürünlerimizden, ana kartında varsayılan perakende satış fiyatı (Satış Fiyatı 1) tanımlanmış olmasına rağmen, bu fiyat için KDV kodu (SF1KDV1) belirtilmemiş olanlar hangileri? Bu durum, hatalı faturalandırmaya yol açabilir.",
+    "expected_sql": "SELECT TOP 100\n    s.MalKodu AS \"Ürün Kodu\",\n    s.MalAdi AS \"Ürün Adı\",\n    sf.SatisFiyat1 AS \"Varsayılan Perakende Satış Fiyatı\"\nFROM Stok AS s WITH (NOLOCK)\nINNER JOIN StokFiyat AS sf WITH (NOLOCK) ON s.Id = sf.StokId\nWHERE\n    s.AktifPasif = 1 -- Aktif ürünler\n    AND sf.SatisFiyat1 IS NOT NULL -- Varsayılan perakende satış fiyatı tanımlanmış\n    AND sf.SF1KDV1 IS NULL -- Ancak KDV kodu belirtilmemiş\nORDER BY s.MalKodu;",
+    "paraphrase": "Perakende satış fiyatı girilmiş ama bu fiyata ait KDV kodu boş bırakılmış aktif ürünler hangileri?"
+  },
+  {
+    "original_index": 1195,
+    "original_question": "Özel bir cari koduna (müşteriye) atanmış, şu an aktif ve geçerli olan kaç farklı fiyat listesi var? Bu listelerin adlarını ve kaç farklı müşteriye özel fiyatlandırma yapıldığını görmek istiyorum.",
+    "expected_sql": "SELECT TOP 100\n    fl.ListeNo AS \"Fiyat Listesi Numarası\",\n    fl.ListeAdi AS \"Fiyat Listesi Adı\",\n    COUNT(DISTINCT fld.CariKodu) AS \"Farklı Müşteri Sayısı\"\nFROM FiyatListe fl WITH (NOLOCK)\nINNER JOIN FiyatListeDetay fld WITH (NOLOCK) ON fl.Id = fld.FiyatId\nWHERE fl.AktifPasif = 1 -- Aktif fiyat listeleri\n  AND fl.ListeTipi = 1 -- Satış Listesi\n  AND GETDATE() BETWEEN fl.BaslangicTarih AND fl.BitisTarih -- Şu an geçerli\n  AND fld.CariKodu IS NOT NULL -- Cari koduna özel atanmış\n  AND fld.CariKodu <> '' -- Boş cari kodu olmasın\nGROUP BY fl.ListeNo, fl.ListeAdi\nORDER BY \"Farklı Müşteri Sayısı\" DESC, fl.ListeAdi ASC;",
+    "paraphrase": "Belirli müşterilere özel tanımlanmış, şu anda geçerli fiyat listesi sayımız kaç ve kaç müşteriyi kapsıyor?"
+  },
+  {
+    "original_index": 1210,
+    "original_question": "Bugüne kadar hiç teslim edilmemiş ama hala açık durumda olan siparişlerimizin toplam tutarı ne kadar? Bu tutarı en çok olan ilk 10 müşteriyi listeleyebilir misin?",
+    "expected_sql": "SELECT TOP 100\n    ch.Unvan AS [Müşteri Ünvanı],\n    SUM(sth.Tutar) AS [Toplam Bekleyen Tutar]\nFROM SiparisHareket sh WITH (NOLOCK)\nINNER JOIN StokHareket sth WITH (NOLOCK) ON sh.Id = sth.Id\nINNER JOIN SiparisBelge sb WITH (NOLOCK) ON sh.SiparisBelgeId = sb.Id\nINNER JOIN CariHesap ch WITH (NOLOCK) ON sth.CariHesapId = ch.Id\nWHERE sb.SiparisDurumu = 1 -- Açık/Onaylı siparişler\n  AND sh.TeslimMiktar = 0 -- Hiç teslimat yapılmamış\nGROUP BY ch.Unvan\nORDER BY [Toplam Bekleyen Tutar] DESC;",
+    "paraphrase": "Hiç teslim edilmemiş açık siparişlerin toplam tutarı ne kadar ve en yüksek tutarlı ilk 10 müşteri kim?"
+  },
+  {
+    "original_index": 1225,
+    "original_question": "Son 7 gün içinde süresi dolmuş veya dolacak olan aktif fiyat listelerimiz hangileri? Bu listelerde yer alan ürün sayısını da görmek istiyorum ki etkilenen ürünleri anlayabilelim.",
+    "expected_sql": "SELECT TOP 100\n    fl.ListeAdi AS FiyatListesiAdi,\n    fl.ListeNo AS FiyatListesiNo,\n    fl.BitisTarih AS BitisTarihi,\n    COUNT(fld.Id) AS ListeKapsamindakiUrunSayisi\nFROM FiyatListe AS fl WITH (NOLOCK)\nLEFT JOIN FiyatListeDetay AS fld WITH (NOLOCK) ON fl.Id = fld.FiyatId\nWHERE\n    fl.AktifPasif = 1\n    AND fl.ListeTipi = 1 -- Satış Fiyat Listesi\n    AND fl.BitisTarih BETWEEN DATEADD(day, -7, GETDATE()) AND DATEADD(day, 7, GETDATE()) -- Son 7 gün içinde bitmiş veya gelecek 7 gün içinde bitecek\nGROUP BY\n    fl.ListeAdi, fl.ListeNo, fl.BitisTarih\nORDER BY\n    fl.BitisTarih ASC;",
+    "paraphrase": "Son bir hafta içinde süresi dolan veya dolacak aktif fiyat listelerimiz hangileri, kaç ürünü etkiliyor?"
+  },
+  {
+    "original_index": 1240,
+    "original_question": "Hangi ürünlerimizin mevcut stok seviyesi azami stok seviyesini aşmış durumda ve bu ürünlerden ne kadar fazlamız var?",
+    "expected_sql": "SELECT TOP 100\n    s.MalKodu AS Urun_Kodu,\n    s.MalAdi AS Urun_Adi,\n    SUM(CASE WHEN sh.IslemTip = 0 THEN sh.Miktar ELSE -sh.Miktar END) AS Mevcut_Stok_Miktari,\n    s.AzamiStok AS Azami_Stok_Seviyesi,\n    (SUM(CASE WHEN sh.IslemTip = 0 THEN sh.Miktar ELSE -sh.Miktar END) - s.AzamiStok) AS Fazla_Stok_Miktari\nFROM StokHareket sh WITH (NOLOCK)\nINNER JOIN Stok s WITH (NOLOCK) ON sh.StokId = s.Id\nWHERE s.AktifPasif = 1  -- Aktif ürünler\n  AND s.MiktarTakibi = 1 -- Miktar takibi yapılan ürünler\nGROUP BY s.MalKodu, s.MalAdi, s.AzamiStok\nHAVING SUM(CASE WHEN sh.IslemTip = 0 THEN sh.Miktar ELSE -sh.Miktar END) > s.AzamiStok\nORDER BY Fazla_Stok_Miktari DESC;",
+    "paraphrase": "Stok seviyesi azami sınırı geçen ürünlerimiz hangileri ve ne kadar fazlamız var?"
+  },
+  {
+    "original_index": 1255,
+    "original_question": "Son 3 ayda fiili sevk tarihi olan ancak henüz fiili teslim tarihi girilmemiş (yani hala yolda görünen veya teslimat bilgisi eksik olan) irsaliyelerimiz var mı? Varsa bu irsaliyelerin belge numaralarını, fiili sevk tarihlerini ve taşıyıcı firmalarını listeleyebilir misiniz?",
+    "expected_sql": "SELECT TOP 100\n    bb.BelgeNo AS IrsaliyeNumarasi,\n    ig.FiiliSevkTarihi AS FiiliSevkiyatTarihi,\n    ch.Unvan AS TasiyiciFirmaUnvani\nFROM IrsaliyeBelge ib WITH (NOLOCK)\nJOIN IrsaliyeGonderi ig WITH (NOLOCK) ON ib.Id = ig.IrsaliyeId\nJOIN BelgeBaslik bb WITH (NOLOCK) ON ib.Id = bb.Id\nLEFT JOIN CariHesap ch WITH (NOLOCK) ON ig.TasiyiciHesapId = ch.Id\nWHERE ig.FiiliSevkTarihi >= DATEADD(month, -3, GETDATE())\n  AND ib.TeslimTarihi IS NULL -- Fiili teslim tarihi henüz girilmemiş\nORDER BY ig.FiiliSevkTarihi ASC;",
+    "paraphrase": "Son 3 ayda sevk edilmiş ama teslim tarihi girilmemiş, yani hâlâ yolda görünen irsaliyelerimiz var mı?"
+  },
+  {
+    "original_index": 1270,
+    "original_question": "Açık siparişleri olan ancak kritik veya azami stok seviyesi tanımlanmamış ürünlerimiz hangileri? Bu ürünlerin kodlarını, adlarını ve toplam açık sipariş miktarlarını görmek istiyorum.",
+    "expected_sql": "SELECT TOP 100\n    s.MalKodu AS UrunKodu,\n    s.MalAdi AS UrunAdi,\n    SUM(sth.AcikMiktar) AS ToplamAcikSiparisMiktari\nFROM\n    StokHareket sth WITH (NOLOCK)\nINNER JOIN\n    SiparisHareket sh WITH (NOLOCK) ON sth.Id = sh.Id\nINNER JOIN\n    SiparisBelge sbg WITH (NOLOCK) ON sh.SiparisBelgeId = sbg.Id\nINNER JOIN\n    Stok s WITH (NOLOCK) ON sth.StokId = s.Id\nWHERE\n    sbg.SiparisDurumu = 1 -- Açık siparişler\n    AND sth.AcikMiktar > 0 -- Açık miktarı olanlar\n    AND (s.KritikStok IS NULL OR s.KritikStok = 0.00) -- Kritik stok tanımlanmamış veya 0\n    AND (s.AzamiStok IS NULL OR s.AzamiStok = 0.00) -- Azami stok tanımlanmamış veya 0\nGROUP BY\n    s.MalKodu,\n    s.MalAdi\nORDER BY\n    ToplamAcikSiparisMiktari DESC;",
+    "paraphrase": "Açık siparişi olduğu halde kritik/azami stok seviyesi tanımlanmamış ürünler hangileri?"
+  },
+  {
+    "original_index": 1285,
+    "original_question": "Son 3 ayda, kredi kartı işlemlerinde ortalama yanıt süresi (işlem başlatma ile yanıt alma arasındaki süre) kaç saniyedir ve başarılı/beklemedeki işlemler için bu süreler nasıl değişiyor?",
+    "expected_sql": "SELECT TOP 100\n    CASE ccp.Status\n        WHEN 0 THEN 'Beklemede'\n        WHEN 1 THEN 'Başarılı'\n        ELSE 'Bilinmiyor'\n    END AS [İşlem Durumu],\n    AVG(DATEDIFF(second, ccp.DateCreated, ccp.DateResponse)) AS [Ortalama Yanıt Süresi (Saniye)]\nFROM\n    CreditCardPayment ccp WITH (NOLOCK)\nWHERE\n    ccp.DateCreated >= DATEADD(month, -3, GETDATE()) -- Son 3 ay\n    AND ccp.DateResponse IS NOT NULL -- Yanıt alınmış işlemler\nGROUP BY\n    ccp.Status\nORDER BY\n    ccp.Status;",
+    "paraphrase": "Son 3 ayda kredi kartı işlemlerinin ortalama yanıt süresi kaç saniye, başarılı ve bekleyen işlemler arasında fark var mı?"
+  },
+  {
+    "original_index": 1300,
+    "original_question": "Son 1 yıl içerisinde, standart (kağıt) irsaliye olarak düzenlediğimiz sevkiyatların toplam brüt ağırlığı e-İrsaliye olarak düzenlediklerimizden ne kadar farklı? İki senaryo tipine göre toplam brüt ağırlıkları karşılaştıran bir rapor alabilir miyim?",
+    "expected_sql": "SELECT TOP 100\n    CASE ib.Senaryo\n        WHEN 0 THEN 'Standart (Kağıt) İrsaliye'\n        WHEN 6 THEN 'e-İrsaliye'\n        ELSE 'Diğer'\n    END AS [İrsaliye Senaryosu],\n    SUM(ig.BrutAgirlik) AS [Toplam Brüt Ağırlık (Kg)]\nFROM IrsaliyeGonderi ig WITH (NOLOCK)\nINNER JOIN IrsaliyeBelge ib WITH (NOLOCK) ON ig.IrsaliyeId = ib.Id\nINNER JOIN BelgeBaslik bb WITH (NOLOCK) ON ib.Id = bb.Id\nWHERE ib.IrsaliyeTipi = 1 -- Satış İrsaliyeleri\n  AND bb.Tarih >= DATEADD(year, -1, GETDATE()) -- Son 1 yıl içinde düzenlenenler\nGROUP BY ib.Senaryo\nORDER BY [İrsaliye Senaryosu];",
+    "paraphrase": "Geçen yıl kağıt irsaliyeyle e-İrsaliye sevkiyatlarının toplam brüt ağırlıklarını karşılaştırır mısın?"
+  },
+  {
+    "original_index": 1315,
+    "original_question": "Son 3 ayda en çok sevk edilen (depodan çıkan) ürünlerimiz hangileri? Bu ürünlerin kodlarını, adlarını ve toplam sevk edilen miktarlarını listeler misin?",
+    "expected_sql": "SELECT TOP 100\n    s.MalKodu AS \"Ürün Kodu\",\n    s.MalAdi AS \"Ürün Adı\",\n    SUM(sh.Miktar) AS \"Toplam Sevk Edilen Miktar\"\nFROM\n    StokHareket sh WITH (NOLOCK)\nINNER JOIN\n    Stok s WITH (NOLOCK) ON sh.StokId = s.Id\nWHERE\n    sh.IslemTip = 1 -- Çıkış (Satış/Fire)\n    AND sh.BelgeTarih >= DATEADD(month, -3, GETDATE())\n    AND sh.IrsaliyeBelgeId IS NOT NULL -- Sadece irsaliye ile ilişkili hareketler\nGROUP BY\n    s.MalKodu,\n    s.MalAdi\nORDER BY\n    \"Toplam Sevk Edilen Miktar\" DESC;",
+    "paraphrase": "Son 3 ayda depodan en çok çıkan ürünler hangileri, kod/ad/miktarıyla listeler misin?"
+  },
+  {
+    "original_index": 1330,
+    "original_question": "Belirli bir tarihten sonra (örneğin 2024 başından itibaren) stok giriş fişiyle depomuza giren ürünlerin toplam miktarı ve değeri ne kadar?",
+    "expected_sql": "SELECT TOP 100\n    s.MalAdi AS Urun_Adi,\n    SUM(sh.Miktar) AS Toplam_Giris_Miktari,\n    SUM(sh.Tutar) AS Toplam_Giris_Degeri\nFROM StokHareket sh WITH (NOLOCK)\nINNER JOIN Stok s WITH (NOLOCK) ON sh.StokId = s.Id\nWHERE sh.BelgeTip = 58 -- Stok Fişi\n  AND sh.IslemTip = 0  -- Giriş\n  AND sh.BelgeTarih >= '2024-01-01' -- Başlangıç tarihi\nGROUP BY s.MalAdi\nORDER BY SUM(sh.Miktar) DESC;",
+    "paraphrase": "2024 başından bu yana stok giriş fişiyle depoya giren ürünlerin toplam miktar ve değeri nedir?"
+  },
+  {
+    "original_index": 1345,
+    "original_question": "Aktif ve miktar takibi yapılan ürünlerimizde, ana kartındaki varsayılan satış KDV oranı ile, geçerli ve aktif bir satış fiyat listesinde belirtilen KDV oranı farklılık gösterenler var mı? Bu durum faturalandırmada tutarsızlığa yol açabilir.",
+    "expected_sql": "SELECT TOP 100\n    s.MalKodu AS \"Ürün Kodu\",\n    s.MalAdi AS \"Ürün Adı\",\n    sf.SF1KDV1 AS \"Ana Kart Varsayılan KDV\",\n    fld.SF1KDV1 AS \"Fiyat Listesi KDV\",\n    fl.ListeAdi AS \"Fiyat Listesi Adı\"\nFROM Stok s WITH (NOLOCK)\nINNER JOIN StokFiyat sf WITH (NOLOCK) ON s.Id = sf.StokId\nINNER JOIN FiyatListeDetay fld WITH (NOLOCK) ON s.MalKodu = fld.StokKodu\nINNER JOIN FiyatListe fl WITH (NOLOCK) ON fld.FiyatId = fl.Id\nWHERE\n    s.AktifPasif = 1 -- Aktif ürünler\n    AND s.MiktarTakibi = 1 -- Miktar takibi yapılan ürünler\n    AND fl.AktifPasif = 1 -- Aktif fiyat listeleri\n    AND fl.ListeTipi = 1 -- Satış fiyat listeleri\n    AND GETDATE() BETWEEN fl.BaslangicTarih AND fl.BitisTarih -- Geçerlilik süresi içinde olan listeler\n    AND fld.SF1KDV1 IS NOT NULL -- Fiyat listesi detayında KDV tanımlanmışsa\n    AND sf.SF1KDV1 <> fld.SF1KDV1 -- Ana kart ve fiyat listesi KDV'leri farklıysa\nORDER BY\n    s.MalKodu, fl.ListeAdi;",
+    "paraphrase": "Ana karttaki KDV oranı ile fiyat listesindeki KDV oranı birbirinden farklı olan aktif ürünler var mı?"
+  },
+  {
+    "original_index": 1360,
+    "original_question": "Firmamız tarafından verilen çeklerden, şu anda banka tarafından tahsilatta olan (yani ödenmeyi bekleyen) çeklerin toplam tutarı nedir?",
+    "expected_sql": "SELECT TOP 100\n    SUM(ck.Tutar) AS \"Toplam Tahsilattaki Verilen Cek Tutari\"\nFROM\n    CekKarti ck WITH (NOLOCK)\nWHERE\n    ck.CekKartTipi = 1 -- Verilen Çek\n    AND ck.SonIslemTip = 18; -- Tahsilatta (Ödenmeyi bekleyen)",
+    "paraphrase": "Verdiğimiz çeklerden şu an bankada tahsil aşamasında olanların toplam tutarı ne kadar?"
+  },
+  {
+    "original_index": 1375,
+    "original_question": "Kredi kartı tahsilatlarında, ortalama en yüksek komisyon oranına sahip ödeme yöntemleri hangileri ve bu yöntemlerden toplam ne kadarlık işlem yapıldı?",
+    "expected_sql": "SELECT TOP 100\n    ccp.PaymentMethodId AS Odeme_Yontemi_Kodu,\n    AVG(ccp.Rate) AS Ortalama_Komisyon_Orani,\n    SUM(ccp.TotalAmount) AS Toplam_Islem_Tutari_Komisyon_Dahil,\n    SUM(ccp.PaymentAmount) AS Toplam_Net_Tahsilat_Tutari\nFROM CreditCardPayment AS ccp WITH (NOLOCK)\nWHERE ccp.Status = 1 -- Başarılı işlemler\nGROUP BY ccp.PaymentMethodId\nORDER BY Ortalama_Komisyon_Orani DESC;",
+    "paraphrase": "Kredi kartı tahsilatlarında ortalama komisyon oranı en yüksek olan ödeme yöntemleri hangileri?"
+  },
+  {
+    "original_index": 1390,
+    "original_question": "Toplamda ne kadar tutarda, vadesi henüz gelmemiş kendi çeklerimiz var? Bu tutarın ne kadarını önümüzdeki 3 ay içinde ödememiz gerekiyor?",
+    "expected_sql": "SELECT TOP 100\n    SUM(CASE WHEN ck.VadeTarihi >= GETDATE() THEN ck.Tutar ELSE 0 END) AS \"Toplam Vadesi Gelmemiş Verilen Çek Tutarı\",\n    SUM(CASE WHEN ck.VadeTarihi >= GETDATE() AND ck.VadeTarihi <= DATEADD(month, 3, GETDATE()) THEN ck.Tutar ELSE 0 END) AS \"Önümüzdeki 3 Ay İçinde Ödenecek Verilen Çek Tutarı\"\nFROM CekKarti ck WITH (NOLOCK)\nWHERE ck.CekKartTipi = 1 -- Verilen Çek\n    AND ck.SonIslemTip NOT IN (79, 28); -- Ödenmiş veya İade Edilmiş çekler hariç",
+    "paraphrase": "Vadesi henüz gelmemiş verdiğimiz çeklerin toplamı ne kadar ve önümüzdeki 3 ayda ne kadarını ödeyeceğiz?"
+  },
+  {
+    "original_index": 1405,
+    "original_question": "Kredi kartı tahsilatlarımızda, tek çekim ve taksitli ödemelerin toplam net tutar bazında dağılımı nasıldır?",
+    "expected_sql": "SELECT TOP 100\n    CASE\n        WHEN ccp.InstallmentId = 1 THEN N'Tek Çekim'\n        ELSE N'Taksitli Ödeme'\n    END AS \"Ödeme Tipi\",\n    SUM(ccp.PaymentAmount) AS \"Toplam Net Tahsilat Tutarı\"\nFROM CreditCardPayment ccp WITH (NOLOCK)\nWHERE ccp.Status = 1 -- Başarılı işlemler\nGROUP BY\n    CASE\n        WHEN ccp.InstallmentId = 1 THEN N'Tek Çekim'\n        ELSE N'Taksitli Ödeme'\n    END\nORDER BY \"Toplam Net Tahsilat Tutarı\" DESC;",
+    "paraphrase": "Kredi kartı tahsilatlarında tek çekim ile taksitli ödemelerin net tutar dağılımı nasıl?"
+  },
+  {
+    "original_index": 1420,
+    "original_question": "Vadesi henüz gelmemiş ve final bir işleme tabi tutulmamış olan döviz cinsinden çeklerimizin (hem aldığımız hem verdiğimiz) toplam tutarı, döviz cinslerine göre ayrı ayrı ne kadar?",
+    "expected_sql": "SELECT TOP 100\n    CASE ck.CekKartTipi\n        WHEN 0 THEN 'Alınan Çek'\n        WHEN 1 THEN 'Verilen Çek'\n        ELSE 'Bilinmeyen'\n    END AS [Çek Türü],\n    ck.DovizCinsi AS [Döviz Cinsi],\n    SUM(ck.DovizTutar) AS [Toplam Döviz Tutarı]\nFROM\n    CekKarti ck WITH (NOLOCK)\nWHERE\n    ck.DvzTL = 1 -- Döviz cinsinden çek\n    AND ck.VadeTarihi >= GETDATE() -- Vadesi henüz gelmemiş\n    AND ck.SonIslemTip NOT IN (21, 28, 81) -- İade edilmemiş (21), tahsil edilmemiş/ödenmemiş (28), kredi kapanmamış (81) (Örnek değerler)\nGROUP BY\n    ck.CekKartTipi, ck.DovizCinsi\nORDER BY\n    [Çek Türü], ck.DovizCinsi;",
+    "paraphrase": "Vadesi gelmemiş, döviz cinsinden aldığımız ve verdiğimiz çeklerin toplamı döviz türüne göre ne kadar?"
+  },
+  {
+    "original_index": 1435,
+    "original_question": "Bu ay bize en çok ödeme yapan (alacaklandıran) ilk 5 müşterimiz kimler ve ne kadar ödeme yaptılar?",
+    "expected_sql": "SELECT TOP 100\n    ch.Unvan AS [Müşteri Ünvanı],\n    SUM(cm.Tutar) AS [Bu Ay Yapılan Toplam Ödeme]\nFROM\n    CariHareket cm WITH (NOLOCK)\nINNER JOIN\n    CariHesap ch WITH (NOLOCK) ON cm.CariHesapId = ch.Id\nWHERE\n    ch.KartTipi = 1 -- Müşteri/Tedarikçi\n    AND ch.AktifPasif = 1 -- Aktif\n    AND cm.BA = 1 -- Alacak (Müşteri için ödeme/tahsilat)\n    AND cm.BelgeTarih >= DATEFROMPARTS(YEAR(GETDATE()), MONTH(GETDATE()), 1) -- Bu ayın başı\n    AND cm.BelgeTarih < DATEADD(month, 1, DATEFROMPARTS(YEAR(GETDATE()), MONTH(GETDATE()), 1)) -- Bir sonraki ayın başı\nGROUP BY\n    ch.Unvan\nORDER BY\n    [Bu Ay Yapılan Toplam Ödeme] DESC;",
+    "paraphrase": "Bu ay bize en çok ödeme yapan ilk 5 müşteri kimler, ne kadar ödemişler?"
+  },
+  {
+    "original_index": 1450,
+    "original_question": "Son 3 ayda birden fazla farklı sevkiyatta görev almış şoförlerimizin adlarını, soyadlarını, görevlerini ve toplam kaç farklı sevkiyatta yer aldıklarını görmek istiyorum.",
+    "expected_sql": "SELECT TOP 100\n    ias.SoforAd + ' ' + ias.SoforSoyad AS Sofor_Ad_Soyad,\n    ias.Gorev AS Sofor_Gorevi,\n    COUNT(DISTINCT ias.IrsaliyeGonderiId) AS Toplam_Farkli_Sevkiyat_Sayisi\nFROM IrsaliyeAracSurucu ias WITH (NOLOCK)\nJOIN IrsaliyeGonderi ig WITH (NOLOCK) ON ias.IrsaliyeGonderiId = ig.Id\nJOIN IrsaliyeBelge ib WITH (NOLOCK) ON ig.IrsaliyeId = ib.Id\nJOIN SatisBelge sb WITH (NOLOCK) ON ib.Id = sb.Id\nJOIN BelgeBaslik bb WITH (NOLOCK) ON sb.Id = bb.Id\nWHERE bb.Tarih >= DATEADD(month, -3, GETDATE()) -- Son 3 ay içinde\n  AND ib.IrsaliyeTipi = 1 -- Sadece Satış İrsaliyeleri\nGROUP BY ias.SoforAd, ias.SoforSoyad, ias.Gorev\nHAVING COUNT(DISTINCT ias.IrsaliyeGonderiId) > 1 -- Birden fazla farklı sevkiyatta görev almış şoförler\nORDER BY Toplam_Farkli_Sevkiyat_Sayisi DESC;",
+    "paraphrase": "Son 3 ayda birden fazla sevkiyatta görev alan şoförlerimiz kimler, kaç sevkiyata katılmışlar?"
+  },
+  {
+    "original_index": 1465,
+    "original_question": "Son 6 ayda satışı yapılan (çıkış işlemi olan) ancak hiç ana alış fiyatı (StokFiyat.AlisFiyati1) tanımlanmamış ürünler hangileri? Bu ürünlerin karlılık analizi yapılamaz.",
+    "expected_sql": "SELECT TOP 100\n    s.MalKodu AS \"Ürün Kodu\",\n    s.MalAdi AS \"Ürün Adı\",\n    'Alış Fiyatı Tanımlanmamış veya Sıfır' AS \"Alış Fiyatı Durumu\"\nFROM StokHareket AS sh WITH (NOLOCK)\nINNER JOIN Stok AS s WITH (NOLOCK) ON sh.StokId = s.Id\nLEFT JOIN StokFiyat AS sf WITH (NOLOCK) ON s.Id = sf.StokId\nWHERE\n    sh.IslemTip = 1 -- Satış (Çıkış) işlemleri\n    AND sh.BelgeTarih >= DATEADD(month, -6, GETDATE()) -- Son 6 ay içinde\n    AND s.AktifPasif = 1 -- Aktif ürünler\n    AND (sf.AlisFiyati1 IS NULL OR sf.AlisFiyati1 = 0) -- Alış fiyatı tanımlanmamış veya sıfır\nGROUP BY\n    s.MalKodu, s.MalAdi;",
+    "paraphrase": "Son yarım yılda satılmış ama alış fiyatı hiç tanımlanmamış ürünler hangileri?"
+  },
+  {
+    "original_index": 1480,
+    "original_question": "Bu ay içinde kredi kartı ile tahsil etmeye çalıştığımız ama başarısız veya beklemede olan işlemlerin sayısı ve toplam tutarı nedir?",
+    "expected_sql": "SELECT TOP 100\n    COUNT(ccp.Id) AS \"Başarısız/Beklemedeki İşlem Sayısı\",\n    SUM(ccp.PaymentAmount) AS \"Toplam Başarısız/Beklemedeki Tutar (Net)\",\n    SUM(ccp.TotalAmount) AS \"Toplam Başarısız/Beklemedeki Tutar (Brüt)\"\nFROM CreditCardPayment ccp WITH (NOLOCK)\nWHERE ccp.Status = 0 -- Başarısız veya beklemede olan işlemler\n  AND ccp.DateCreated >= DATEADD(month, DATEDIFF(month, 0, GETDATE()), 0) -- Bu ayın başlangıcı\n  AND ccp.DateCreated < DATEADD(month, DATEDIFF(month, 0, GETDATE()) + 1, 0); -- Gelecek ayın başlangıcı",
+    "paraphrase": "Bu ay kredi kartıyla tahsil etmeye çalışıp başarısız olan veya beklemede kalan işlemlerin sayısı ve tutarı ne?"
+  }
+]

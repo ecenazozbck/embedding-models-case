@@ -1,0 +1,7 @@
+﻿model;approach;recall_at_1;recall_at_3;mrr;avg_query_ms
+multilingual-e5-large;buyuk cok dilli;0.88;0.94;0.9083;78.1
+bge-m3;buyuk cok dilli;0.83;0.9;0.865;82.38
+emrecan;turkce bert;0.83;0.94;0.88;22.69
+selmanbaysan-trmteb;turkce bert;0.8;0.91;0.85;21.5
+atasoglu-1mb;statik/distle;0.09;0.21;0.1383;0.17
+cohere-embed-multilingual;API tabanli(cloud);0.89;0.97;0.93;7.91
